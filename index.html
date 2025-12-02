@@ -4,576 +4,257 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RKMVC Placement Diary</title>
-    
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        rkm: {
-                            maroon: '#800000',
-                            gold: '#FFC107',
-                            cream: '#FFFDD0',
-                        }
-                    },
-                    fontFamily: {
-                        serif: ['"Noto Serif"', 'serif'],
-                        sans: ['"Noto Sans"', 'sans-serif'],
-                    }
-                }
-            }
+            theme: { extend: { colors: { rkm: { maroon: '#800000', gold: '#FFC107', cream: '#FFFDD0' } }, fontFamily: { serif: ['"Noto Serif"', 'serif'], sans: ['"Noto Sans"', 'sans-serif'] } } }
         }
     </script>
-    
-    <!-- React & Babel -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Icons & Fonts -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&family=Noto+Serif:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
-
     <style>
         body { font-family: 'Noto Sans', sans-serif; }
         h1, h2, h3, .brand-font { font-family: 'Noto Serif', serif; }
-        
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #800000; border-radius: 4px; }
-        
-        @media print {
-            body { background: white; -webkit-print-color-adjust: exact; }
-            .no-print { display: none !important; }
-            .print-break-inside-avoid { break-inside: avoid; }
-            .shadow-md { box-shadow: none !important; }
-            .border-t-4 { border-top-width: 2px !important; }
-            .overflow-x-auto { overflow: visible !important; }
-        }
+        @media print { .no-print { display: none !important; } .print-break-inside-avoid { break-inside: avoid; } }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 selection:bg-rkm-gold selection:text-rkm-maroon">
-
+<body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
-
     <script type="text/babel" data-type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
-        // --- ASSETS ---
-        const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Ramakrishna_Mission_Emblem.svg/1200px-Ramakrishna_Mission_Emblem.svg.png"; 
-
-        // --- CONFIGURATION ---
-        // Set to NULL to force the setup screen. This prevents "Invalid API Key" crash loops.
-        // You will paste your correct key in the app UI.
-        const HARDCODED_CONFIG = null; 
-        
         const APP_COLLECTION_ID = "rkmvc-placement-diary-live-v2";
-        const STORAGE_KEY = "firebase_config_v7"; // Version bump to clear old errors
+        // Using official Wikimedia logo directly
+        const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Ramakrishna_Mission_Emblem.svg/1200px-Ramakrishna_Mission_Emblem.svg.png";
+        const Icon = ({ name, size = 20, className = "" }) => { React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, []); return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block' }}></i>; };
 
-        // --- HELPERS ---
-        const safeParseInt = (val) => {
-            if (typeof val === 'number') return val;
-            if (!val) return 0;
-            const num = parseInt(String(val).replace(/\D/g, ''));
-            return isNaN(num) ? 0 : num;
+        // CONFIGURATION: Replace NULL with your keys if you want to hardcode them later.
+        // For now, the Setup Screen will handle it.
+        const HARDCODED_CONFIG = {
+            apiKey: "AIzaSyAIIlLfjh265a8cDtUmDaukEst2s12GqvME",
+            authDomain: "rkmvc-placement-2025-2026.firebaseapp.com",
+            projectId: "rkmvc-placement-2025-2026",
+            storageBucket: "rkmvc-placement-2025-2026.firebasestorage.app",
+            messagingSenderId: "886169557208",
+            appId: "1:886169557208:web:2e69a76784a587a9e79fac",
+            measurementId: "G-3V10HBH51Y"
         };
 
-        // --- ICONS ---
-        const Icon = ({ name, size = 20, className = "" }) => {
-            React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, []);
-            return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block' }}></i>;
-        };
-
-        // --- SETUP SCREEN ---
-        const FirebaseSetup = ({ onSave, errorMsg }) => {
-            const [input, setInput] = React.useState('');
-            const [localError, setLocalError] = React.useState('');
-
-            const handleSave = () => {
-                try {
-                    let config = null;
-                    try { config = JSON.parse(input); } catch(e) {
-                        const apiKey = input.match(/apiKey:\s*["']([^"']+)["']/)?.[1];
-                        const projectId = input.match(/projectId:\s*["']([^"']+)["']/)?.[1];
-                        if (apiKey && projectId) {
-                            config = {
-                                apiKey, projectId,
-                                authDomain: input.match(/authDomain:\s*["']([^"']+)["']/)?.[1],
-                                storageBucket: input.match(/storageBucket:\s*["']([^"']+)["']/)?.[1],
-                                messagingSenderId: input.match(/messagingSenderId:\s*["']([^"']+)["']/)?.[1],
-                                appId: input.match(/appId:\s*["']([^"']+)["']/)?.[1]
-                            };
-                        }
-                    }
-
-                    if (!config || !config.apiKey) throw new Error("Invalid configuration. Please paste the full 'const firebaseConfig' block.");
-                    onSave(config);
-                } catch (e) {
-                    setLocalError(e.message);
-                }
-            };
-
+        const FirebaseSetup = ({ onSave }) => {
+            const [input, setInput] = React.useState(JSON.stringify(HARDCODED_CONFIG, null, 2));
             return (
                 <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
                     <div className="bg-white p-8 rounded-xl shadow-xl max-w-lg w-full border-t-4 border-rkm-maroon">
-                        <div className="flex items-center space-x-3 text-slate-800 mb-6">
-                            <Icon name="settings" size={32} className="text-rkm-maroon" />
-                            <h2 className="text-2xl font-bold text-rkm-maroon font-serif">Connect Database</h2>
-                        </div>
-                        
-                        {errorMsg && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded mb-4 text-sm">{errorMsg}</div>}
-                        
-                        <p className="text-sm text-slate-600 mb-4">
-                            Paste your Firebase configuration code below.
-                        </p>
-
-                        <textarea 
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            placeholder={`const firebaseConfig = {\n  apiKey: "...",\n  ...\n};`}
-                            className="w-full h-48 p-3 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-rkm-gold outline-none mb-4"
-                        ></textarea>
-
-                        {localError && <p className="text-red-600 text-xs mb-4 flex items-center font-bold"><Icon name="alert-triangle" size={14} className="mr-1"/> {localError}</p>}
-
-                        <button onClick={handleSave} className="w-full bg-rkm-maroon hover:bg-red-900 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
-                            <Icon name="save" size={18} /> Save & Connect
-                        </button>
+                        <h2 className="text-2xl font-bold text-rkm-maroon mb-4">Connect Database</h2>
+                        <textarea value={input} onChange={(e) => setInput(e.target.value)} className="w-full h-48 p-3 text-xs border rounded mb-4 font-mono"></textarea>
+                        <button onClick={() => {
+                            try {
+                                const c = JSON.parse(input);
+                                if(c.apiKey) onSave(c);
+                                else alert("Invalid Config");
+                            } catch(e) { alert("Error parsing config"); }
+                        }} className="w-full bg-rkm-maroon text-white py-3 rounded font-bold">Connect</button>
                     </div>
                 </div>
             );
         };
 
-        // --- NAVBAR ---
-        const Navbar = ({ isEditMode, setEditMode, onReset }) => (
-            <nav className="sticky top-0 z-40 bg-white shadow-md border-b-4 border-rkm-gold no-print">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center h-20 md:h-24">
-                        <div className="flex items-center space-x-3 md:space-x-4">
-                            <img src={LOGO_URL} alt="RKM Emblem" className="h-12 md:h-16 w-auto drop-shadow-sm" onError={(e) => e.target.style.display='none'} />
-                            <div>
-                                <h1 className="text-rkm-maroon font-bold text-sm md:text-xl leading-none font-serif tracking-wide uppercase">Ramakrishna Mission</h1>
-                                <h2 className="text-rkm-gold font-bold text-base md:text-2xl leading-tight font-serif tracking-wider uppercase drop-shadow-sm" style={{ textShadow: '1px 1px 0 #800000' }}>Vivekananda College</h2>
-                                <p className="text-[10px] md:text-xs text-slate-600 font-semibold tracking-widest uppercase hidden md:block">(Autonomous), Mylapore, Chennai - 04</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <button onClick={() => window.print()} className="flex items-center space-x-2 px-3 py-2 bg-rkm-maroon hover:bg-red-900 text-white rounded shadow text-xs md:text-sm font-bold uppercase tracking-wider transition-all">
-                                <Icon name="printer" size={16} /> <span className="hidden md:inline">Print</span>
-                            </button>
-                            <button 
-                                onClick={() => setEditMode(!isEditMode)}
-                                className={`p-2 rounded-full transition-colors border-2 flex items-center justify-center ${isEditMode ? 'bg-rkm-gold text-rkm-maroon border-rkm-maroon' : 'bg-slate-100 text-slate-400 border-transparent hover:bg-slate-200'}`}
-                                title={isEditMode ? "Exit Admin Mode" : "Enter Admin Mode"}
-                            >
-                                <Icon name={isEditMode ? "unlock" : "lock"} size={18} />
-                            </button>
-                            <button onClick={onReset} className="p-2 text-slate-300 hover:text-red-500" title="Reset Connection"><Icon name="settings" size={14} /></button>
-                        </div>
-                    </div>
-                </div>
-            </nav>
-        );
-
-        // --- HERO ---
-        const Hero = ({ stats }) => {
-            const totalPlaced = stats.reduce((acc, curr) => acc + safeParseInt(curr.selected), 0);
-            const totalCompanies = new Set(stats.map(s => s.company)).size;
-
-            return (
-                <React.Fragment>
-                    <div className="hidden print:block w-full border-b-4 border-double border-rkm-maroon mb-8 pb-4">
-                        <div className="flex items-center justify-between">
-                            <img src={LOGO_URL} alt="Emblem" className="h-24 w-auto" />
-                            <div className="text-center flex-1 px-4">
-                                <h1 className="text-2xl font-bold uppercase font-serif text-rkm-maroon tracking-wide">Ramakrishna Mission Vivekananda College</h1>
-                                <p className="text-sm font-semibold uppercase tracking-widest text-slate-600">(Autonomous)</p>
-                                <p className="text-sm text-slate-500 mt-1">Mylapore, Chennai - 600004</p>
-                                <div className="mt-4 inline-block border-t-2 border-rkm-gold pt-2 px-8">
-                                    <h2 className="text-xl font-bold uppercase text-black font-sans">Placement Diary & Report</h2>
-                                    <p className="text-sm font-bold text-slate-500 uppercase">Academic Year 2025-2026</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="relative bg-rkm-maroon text-white overflow-hidden no-print shadow-inner" style={{ minHeight: '300px' }}>
-                        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#FFC107 2px, transparent 2px)', backgroundSize: '30px 30px' }}></div>
-                        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-20 flex flex-col justify-center h-full">
-                            <div className="border-l-4 border-rkm-gold pl-4 md:pl-6">
-                                <span className="text-rkm-gold font-bold tracking-widest uppercase text-xs md:text-sm mb-2 block">Career Guidance Bureau</span>
-                                <h1 className="text-3xl md:text-6xl font-serif font-bold leading-tight mb-4">
-                                    Placement Diary <br/>
-                                    <span className="text-rkm-gold">2025 - 2026</span>
-                                </h1>
-                                <p className="text-sm md:text-lg text-slate-200 max-w-2xl font-light">
-                                    Bridging the gap between education and employment.
-                                </p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 max-w-xl mt-8 md:mt-10">
-                                <div className="bg-white/10 backdrop-blur-sm rounded p-3 md:p-4 border-l-2 border-rkm-gold">
-                                    <div className="text-2xl md:text-3xl font-bold text-white">{totalPlaced}</div>
-                                    <div className="text-[10px] text-rkm-gold uppercase tracking-widest font-bold mt-1">Offers Received</div>
-                                </div>
-                                <div className="bg-white/10 backdrop-blur-sm rounded p-3 md:p-4 border-l-2 border-rkm-gold">
-                                    <div className="text-2xl md:text-3xl font-bold text-white">{totalCompanies}</div>
-                                    <div className="text-[10px] text-rkm-gold uppercase tracking-widest font-bold mt-1">Companies Visited</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-rkm-gold py-2 md:py-3 text-center no-print shadow-md relative z-10 px-4">
-                        <p className="text-rkm-maroon font-serif italic font-bold text-sm md:text-lg">"Arise, awake, and stop not till the goal is reached."</p>
-                        <p className="text-rkm-maroon text-[10px] md:text-xs font-bold uppercase tracking-widest mt-1 opacity-80">- Swami Vivekananda</p>
-                    </div>
-                </React.Fragment>
-            );
-        };
-
-        // --- STATS TABLE ---
-        const StatsTable = ({ data, isEditMode, onDelete, onAdd }) => {
-            const [sortConfig, setSortConfig] = React.useState({ key: 'date', direction: 'desc' });
-            const sortedData = [...data].sort((a, b) => {
-                if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-                if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
-                return 0;
-            });
-
-            return (
-                <section className="py-8 md:py-12 bg-white print:py-4">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 print:mb-4 border-b-2 border-slate-100 pb-4 gap-4">
-                            <div>
-                                <h2 className="text-xl md:text-2xl font-bold text-rkm-maroon font-serif flex items-center">
-                                    <Icon name="bar-chart-3" className="mr-2 text-rkm-gold" /> Placement Statistics
-                                </h2>
-                            </div>
-                            {isEditMode && (
-                                <button onClick={onAdd} className="w-full md:w-auto flex items-center justify-center space-x-2 bg-rkm-maroon text-white px-4 py-2 rounded shadow hover:bg-red-900 transition no-print text-sm font-bold uppercase tracking-wider">
-                                    <Icon name="plus" size={16} /> <span>Add Record</span>
-                                </button>
-                            )}
-                        </div>
-
-                        {data.length === 0 ? (
-                            <div className="text-center py-12 bg-slate-50 rounded border border-slate-200 border-dashed">
-                                <p className="text-slate-500 italic">No placement records added yet.</p>
-                                {isEditMode && <p className="text-sm text-rkm-maroon mt-2 font-bold cursor-pointer" onClick={onAdd}>+ Add your first record</p>}
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto border border-slate-200 rounded shadow-sm print:border-2 print:border-black print:rounded-none">
-                                <table className="min-w-full divide-y divide-slate-200 text-sm whitespace-nowrap">
-                                    <thead className="bg-rkm-maroon text-white print:bg-slate-200 print:text-black">
-                                        <tr>
-                                            {['Date', 'Company', 'Mode', 'Aptitude', 'GD', 'Tech', 'HR', 'Selected'].map((head) => (
-                                                <th key={head} className="px-4 py-3 text-left font-bold uppercase tracking-wider text-xs print:border-r print:border-slate-300">{head}</th>
-                                            ))}
-                                            {isEditMode && <th className="px-4 py-3 no-print"></th>}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-slate-200">
-                                        {sortedData.map((row) => (
-                                            <tr key={row.id} className="hover:bg-amber-50/50 print:border-b print:border-slate-300">
-                                                <td className="px-4 py-3 font-mono text-slate-600 print:border-r">{new Date(row.date).toLocaleDateString('en-GB')}</td>
-                                                <td className="px-4 py-3 font-bold text-rkm-maroon print:border-r">{row.company}</td>
-                                                <td className="px-4 py-3 text-slate-500 print:border-r">{row.mode}</td>
-                                                <td className="px-4 py-3 text-center print:border-r">{row.aptitude || '-'}</td>
-                                                <td className="px-4 py-3 text-center print:border-r">{row.gd || '-'}</td>
-                                                <td className="px-4 py-3 text-center print:border-r">{row.tech || '-'}</td>
-                                                <td className="px-4 py-3 text-center print:border-r">{row.hr || '-'}</td>
-                                                <td className="px-4 py-3 text-center font-bold text-green-700 bg-green-50 print:bg-transparent print:text-black">{row.selected}</td>
-                                                {isEditMode && (
-                                                    <td className="px-4 py-3 text-right no-print">
-                                                        <button onClick={() => onDelete(row.id, 'placement_stats')} className="text-slate-400 hover:text-red-600">
-                                                            <Icon name="trash-2" size={16} />
-                                                        </button>
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                </section>
-            );
-        };
-
-        const DiarySection = ({ data, isEditMode, onDelete, onAdd }) => {
-            const sortedData = [...data].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-            return (
-                <section className="py-12 bg-slate-50 print:bg-white print:py-4 border-t border-slate-200">
-                    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 print:mb-4 border-b-2 border-slate-200 pb-4 gap-4">
-                            <div>
-                                <h2 className="text-xl md:text-2xl font-bold text-rkm-maroon font-serif flex items-center">
-                                    <Icon name="book-open" className="mr-2 text-rkm-gold" /> Placement Activities Log
-                                </h2>
-                            </div>
-                            {isEditMode && (
-                                <button onClick={onAdd} className="w-full md:w-auto flex items-center justify-center space-x-2 bg-rkm-maroon text-white px-4 py-2 rounded shadow hover:bg-red-900 transition no-print text-sm font-bold uppercase tracking-wider">
-                                    <Icon name="plus" size={16} /> <span>Add Event</span>
-                                </button>
-                            )}
-                        </div>
-
-                        {data.length === 0 ? (
-                            <div className="text-center py-12 bg-white rounded border border-slate-200 border-dashed">
-                                <p className="text-slate-500 italic">No events logged yet.</p>
-                                {isEditMode && <p className="text-sm text-rkm-maroon mt-2 font-bold cursor-pointer" onClick={onAdd}>+ Add your first event</p>}
-                            </div>
-                        ) : (
-                            <div className="space-y-8 print:space-y-6">
-                                {sortedData.map((item) => (
-                                    <div key={item.id} className="bg-white rounded-lg shadow-sm border-l-4 border-rkm-gold overflow-hidden print:shadow-none print:border print:border-slate-400 print:break-inside-avoid relative">
-                                        <div className="absolute top-0 right-0 bg-slate-100 px-4 py-2 rounded-bl-lg border-b border-l border-slate-200 print:hidden">
-                                            <span className="font-bold text-rkm-maroon font-serif">{new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                                        </div>
-                                        <div className="p-6 print:p-4">
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div className="w-full">
-                                                    <div className="hidden print:block font-bold text-xs uppercase mb-1 text-slate-500">{new Date(item.date).toLocaleDateString()}</div>
-                                                    <h3 className="text-xl md:text-2xl font-bold text-rkm-maroon font-serif mb-2 print:text-lg">{item.title}</h3>
-                                                    <div className="flex flex-wrap gap-2 md:gap-4 text-xs md:text-sm text-slate-500 no-print">
-                                                        {item.location && <span className="flex items-center font-medium"><Icon name="map-pin" size={16} className="mr-1 text-rkm-gold"/> {item.location}</span>}
-                                                        {item.tags && item.tags.map((tag, i) => (
-                                                            <span key={i} className="bg-amber-50 text-amber-800 px-2 py-0.5 rounded text-xs uppercase font-bold tracking-wide border border-amber-100">#{tag}</span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                                {isEditMode && (
-                                                    <button onClick={() => onDelete(item.id, 'placement_diary')} className="text-slate-300 hover:text-red-600 no-print z-10 relative ml-4">
-                                                        <Icon name="trash-2" size={20} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                            <p className="text-slate-700 leading-relaxed text-sm md:text-base print:text-sm print:text-justify whitespace-pre-wrap font-serif">{item.desc}</p>
-                                        </div>
-                                        {item.images && item.images.length > 0 && (
-                                            <div className="bg-slate-50 p-6 border-t border-slate-100 print:bg-white print:p-2 print:border-t-0">
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:flex print:gap-4">
-                                                    {item.images.map((img, idx) => (
-                                                        <div key={idx} className="relative group rounded overflow-hidden border border-slate-200 shadow-sm print:border-0 print:shadow-none print:w-1/2">
-                                                            <img src={img} className="w-full h-48 md:h-56 object-cover print:h-48 print:object-contain" onError={(e) => e.target.style.display = 'none'} />
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </section>
-            );
-        };
-
-        const Footer = () => (
-            <footer className="bg-rkm-maroon text-rkm-gold py-12 no-print border-t-4 border-rkm-gold">
-                <div className="max-w-7xl mx-auto px-4 text-center">
-                    <img src={LOGO_URL} alt="Emblem" className="h-12 w-auto mx-auto mb-4 opacity-90 grayscale brightness-200" />
-                    <h3 className="font-serif text-xl font-bold mb-2 uppercase tracking-widest text-white">Ramakrishna Mission Vivekananda College</h3>
-                    <p className="text-sm text-white/70 uppercase tracking-wider">Re-accredited with 'A+' Grade by NAAC</p>
-                    <p className="text-xs text-white/50 mt-8">© 2025 Career Guidance Bureau.</p>
-                </div>
-            </footer>
-        );
-
-        // --- FORMS ---
-        const Modal = ({ isOpen, onClose, title, children }) => {
-            if (!isOpen) return null;
-            return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4 no-print backdrop-blur-sm">
-                    <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border-t-8 border-rkm-maroon max-h-[90vh]">
-                        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                            <h3 className="font-bold text-xl text-rkm-maroon font-serif">{title}</h3>
-                            <button onClick={onClose}><Icon name="x" size={24} className="text-slate-400 hover:text-red-600" /></button>
-                        </div>
-                        <div className="p-6 overflow-y-auto">{children}</div>
-                    </div>
-                </div>
-            );
-        };
-
-        const AddStatForm = ({ onClose, db }) => {
-            const [formData, setFormData] = React.useState({ 
-                date: "", company: "", mode: "Physical", 
-                aptitude: "", gd: "", tech: "", hr: "", selected: "" 
-            });
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                if(!db) return;
-                await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'), { ...formData, createdAt: serverTimestamp() });
-                onClose();
-            };
-            return (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-2">
-                        <div><label className="text-xs font-bold text-slate-500 uppercase">Date</label><input type="date" required className="w-full p-2 border rounded" onChange={e => setFormData({...formData, date: e.target.value})} /></div>
-                        <div><label className="text-xs font-bold text-slate-500 uppercase">Mode</label><select className="w-full p-2 border rounded" onChange={e => setFormData({...formData, mode: e.target.value})}><option>Physical</option><option>Virtual</option><option>Mixed</option></select></div>
-                    </div>
-                    <div><label className="text-xs font-bold text-slate-500 uppercase">Company</label><input required className="w-full p-2 border rounded" onChange={e => setFormData({...formData, company: e.target.value})} /></div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        <div><label className="text-xs font-bold text-slate-500 uppercase">Aptitude</label><input type="text" className="w-full p-2 border rounded" placeholder="e.g. 100" onChange={e => setFormData({...formData, aptitude: e.target.value})} /></div>
-                        <div><label className="text-xs font-bold text-slate-500 uppercase">GD</label><input type="text" className="w-full p-2 border rounded" placeholder="e.g. 20" onChange={e => setFormData({...formData, gd: e.target.value})} /></div>
-                        <div><label className="text-xs font-bold text-slate-500 uppercase">Tech</label><input type="text" className="w-full p-2 border rounded" placeholder="e.g. 15" onChange={e => setFormData({...formData, tech: e.target.value})} /></div>
-                        <div><label className="text-xs font-bold text-slate-500 uppercase">HR</label><input type="text" className="w-full p-2 border rounded" placeholder="e.g. 5" onChange={e => setFormData({...formData, hr: e.target.value})} /></div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-2">
-                        <div><label className="text-xs font-bold text-slate-500 uppercase">Selected (Job Offers)</label><input type="text" className="w-full p-2 border rounded bg-green-50 font-bold" placeholder="e.g. 2" onChange={e => setFormData({...formData, selected: e.target.value})} /></div>
-                    </div>
-                    <button type="submit" className="w-full bg-rkm-maroon text-white p-2 rounded uppercase font-bold text-sm tracking-wider hover:bg-red-900 transition-colors">Save Record</button>
-                </form>
-            );
-        };
-
-        const AddDiaryForm = ({ onClose, db }) => {
-            const [formData, setFormData] = React.useState({ date: "", title: "", desc: "", location: "", image1: "", tags: "" });
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                if(!db) return;
-                const images = formData.image1 ? [formData.image1] : [];
-                const tags = formData.tags.split(',').map(t => t.trim()).filter(t => t);
-                await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'), { ...formData, images, tags, createdAt: serverTimestamp() });
-                onClose();
-            };
-            return (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-2">
-                        <div><label className="text-xs font-bold text-slate-500 uppercase">Date</label><input type="date" required className="w-full p-2 border rounded" onChange={e => setFormData({...formData, date: e.target.value})} /></div>
-                        <div><label className="text-xs font-bold text-slate-500 uppercase">Location</label><input className="w-full p-2 border rounded" onChange={e => setFormData({...formData, location: e.target.value})} /></div>
-                    </div>
-                    <div><label className="text-xs font-bold text-slate-500 uppercase">Title</label><input required className="w-full p-2 border rounded" onChange={e => setFormData({...formData, title: e.target.value})} /></div>
-                    <div><label className="text-xs font-bold text-slate-500 uppercase">Description</label><textarea required className="w-full p-2 border rounded h-24" onChange={e => setFormData({...formData, desc: e.target.value})}></textarea></div>
-                    <div><label className="text-xs font-bold text-slate-500 uppercase">Image URL</label><input placeholder="https://..." className="w-full p-2 border rounded" onChange={e => setFormData({...formData, image1: e.target.value})} /></div>
-                    <button type="submit" className="w-full bg-rkm-maroon text-white p-2 rounded uppercase font-bold text-sm tracking-wider hover:bg-red-900 transition-colors">Save Event</button>
-                </form>
-            );
-        };
-
-        // --- MAIN APP ---
         const App = () => {
-            const [firebaseState, setFirebaseState] = React.useState({ app: null, auth: null, db: null });
+            const [fb, setFb] = React.useState({ app: null, auth: null, db: null });
             const [user, setUser] = React.useState(null);
-            const [statsData, setStatsData] = React.useState([]);
-            const [diaryData, setDiaryData] = React.useState([]);
-            const [isEditMode, setIsEditMode] = React.useState(false);
-            const [showStatModal, setShowStatModal] = React.useState(false);
-            const [showDiaryModal, setShowDiaryModal] = React.useState(false);
-            const [configLoaded, setConfigLoaded] = React.useState(false);
-            const [errorMsg, setErrorMsg] = React.useState("");
+            const [stats, setStats] = React.useState([]);
+            const [diary, setDiary] = React.useState([]);
+            const [isEdit, setIsEdit] = React.useState(false);
+            const [modals, setModals] = React.useState({ stat: false, diary: false });
+            const [formData, setFormData] = React.useState({});
+            const [status, setStatus] = React.useState("Loading...");
 
-            // Load Config
             React.useEffect(() => {
-                const savedConfig = localStorage.getItem(STORAGE_KEY);
-                let config = null;
-
-                if (HARDCODED_CONFIG && HARDCODED_CONFIG.apiKey) {
-                    config = HARDCODED_CONFIG;
-                } else if (savedConfig) {
-                    try { config = JSON.parse(savedConfig); } catch(e) {}
-                }
-
-                if (config) {
-                    try {
-                        const app = initializeApp(config);
-                        const auth = getAuth(app);
-                        const db = getFirestore(app);
-                        setFirebaseState({ app, auth, db });
-                        setConfigLoaded(true);
-                    } catch(e) { 
-                        console.error("Init error", e); 
-                        setErrorMsg(e.message);
-                    }
-                }
+                // Always try hardcoded config first
+                try {
+                   const app = initializeApp(HARDCODED_CONFIG);
+                   setFb({ app, auth: getAuth(app), db: getFirestore(app) });
+                   setStatus("Auth Initialized...");
+                } catch(e) { setStatus("Config Error"); }
             }, []);
 
-            const handleSaveConfig = (config) => {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-                window.location.reload();
-            };
+            React.useEffect(() => {
+                if (fb.auth) {
+                    signInAnonymously(fb.auth).then(() => setStatus("Connected")).catch(e => setStatus("Auth Failed: " + e.message));
+                    onAuthStateChanged(fb.auth, setUser);
+                }
+            }, [fb.auth]);
 
-            const handleReset = () => {
-                if(confirm("Disconnect database?")) {
-                    localStorage.removeItem(STORAGE_KEY);
-                    window.location.reload();
+            React.useEffect(() => {
+                if (user && fb.db) {
+                    // FIX: REMOVED orderBy to prevent "Missing Index" errors. Sorting is done in JS below.
+                    const q1 = query(collection(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'));
+                    const q2 = query(collection(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'));
+
+                    onSnapshot(q1, s => setStats(s.docs.map(d => ({id:d.id, ...d.data()}))));
+                    onSnapshot(q2, s => setDiary(s.docs.map(d => ({id:d.id, ...d.data()}))));
+                }
+            }, [user, fb.db]);
+
+            // Helper to parse numbers
+            const getNum = (v) => { const n = parseInt(String(v).replace(/\D/g,'')); return isNaN(n)?0:n; };
+
+            const addRecord = async (type) => {
+                if (!fb.db) return alert("Database not connected");
+                try {
+                    // Added serverTimestamp for sorting in JS
+                    await addDoc(collection(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type), { ...formData, createdAt: serverTimestamp() });
+                    alert("Saved!");
+                    setModals({ stat: false, diary: false });
+                    setFormData({});
+                } catch (e) {
+                    alert("Error: " + e.message + "\nCheck Firebase Rules.");
                 }
             };
 
-            React.useEffect(() => {
-                if (!firebaseState.auth) return;
-                signInAnonymously(firebaseState.auth)
-                    .catch(err => {
-                        console.error("Auth Error", err);
-                        if (err.code === 'auth/api-key-not-valid') {
-                            setConfigLoaded(false);
-                            localStorage.removeItem(STORAGE_KEY);
-                            setErrorMsg("Invalid API Key. Please paste your correct configuration below.");
-                        }
-                    });
-                return onAuthStateChanged(firebaseState.auth, setUser);
-            }, [firebaseState.auth]);
-
-            React.useEffect(() => {
-                if (!user || !firebaseState.db) return;
-                const statsQ = query(collection(firebaseState.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'), orderBy('date', 'desc'));
-                const diaryQ = query(collection(firebaseState.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'), orderBy('date', 'desc'));
-
-                onSnapshot(statsQ, (snap) => setStatsData(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-                onSnapshot(diaryQ, (snap) => setDiaryData(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-            }, [user, firebaseState.db]);
-
-            const handleDelete = async (id, collectionName) => {
-                if (!firebaseState.db) return;
-                if (confirm("Delete this record permanently?")) {
-                    await deleteDoc(doc(firebaseState.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', collectionName, id));
-                }
+            const deleteRecord = async (id, type) => {
+                if (confirm("Delete?")) await deleteDoc(doc(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type, id));
             };
-            
-            if (!configLoaded) {
-                return (
-                    <FirebaseSetup 
-                        onSave={handleSaveConfig} 
-                        initialValue={JSON.stringify(HARDCODED_CONFIG, null, 2)}
-                        errorMessage={errorMsg}
-                    />
-                );
-            }
+
+            if (!fb.app) return <FirebaseSetup onSave={(c) => { const app = initializeApp(c); setFb({ app, auth: getAuth(app), db: getFirestore(app) }); }} />;
 
             return (
                 <div className="min-h-screen flex flex-col">
-                    <Navbar isEditMode={isEditMode} setEditMode={setIsEditMode} onReset={handleReset} />
-                    <Hero stats={statsData} />
-                    <main className="relative z-10 flex-grow">
-                        <StatsTable data={statsData} isEditMode={isEditMode} onDelete={handleDelete} onAdd={() => setShowStatModal(true)} />
-                        <DiarySection data={diaryData} isEditMode={isEditMode} onDelete={handleDelete} onAdd={() => setShowDiaryModal(true)} />
+                    <nav className="sticky top-0 z-40 bg-white shadow-md border-b-4 border-rkm-gold no-print">
+                        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                            <div className="flex items-center space-x-4">
+                                <img src={LOGO_URL} className="h-16 w-auto" onError={(e)=>e.target.style.display='none'}/>
+                                <div className="hidden md:block">
+                                    <h1 className="text-rkm-maroon font-bold text-xl uppercase">Ramakrishna Mission</h1>
+                                    <h2 className="text-rkm-gold font-bold text-2xl uppercase" style={{textShadow:'1px 1px 0 #800000'}}>Vivekananda College</h2>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => window.print()} className="px-3 py-2 bg-rkm-maroon text-white rounded font-bold text-xs uppercase"><Icon name="printer" size={16}/> Print</button>
+                                <button onClick={() => setIsEdit(!isEdit)} className={`p-2 rounded border-2 ${isEdit ? 'bg-rkm-gold' : 'bg-slate-100'}`}><Icon name={isEdit?"unlock":"lock"} size={18}/></button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <div className="bg-rkm-maroon text-white py-20 text-center no-print shadow-inner relative">
+                        <div className="absolute inset-0 opacity-10" style={{backgroundImage:'radial-gradient(#FFC107 2px, transparent 2px)', backgroundSize:'30px 30px'}}></div>
+                        <div className="relative z-10">
+                            <h1 className="text-4xl md:text-6xl font-bold mb-4 font-serif">Placement Diary <span className="text-rkm-gold">2025-2026</span></h1>
+                            <div className="flex justify-center gap-8 mt-8">
+                                <div className="bg-white/10 p-4 rounded border-l-2 border-rkm-gold text-center"><div className="text-3xl font-bold">{stats.reduce((a,c)=>a+getNum(c.selected),0)}</div><div className="text-[10px] uppercase text-rkm-gold font-bold">Offers</div></div>
+                                <div className="bg-white/10 p-4 rounded border-l-2 border-rkm-gold text-center"><div className="text-3xl font-bold">{new Set(stats.map(s=>s.company)).size}</div><div className="text-[10px] uppercase text-rkm-gold font-bold">Companies</div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <main className="max-w-7xl mx-auto px-4 py-12 w-full flex-grow">
+                        <div className="flex justify-between items-end mb-6 border-b pb-2">
+                            <h2 className="text-2xl font-bold text-rkm-maroon font-serif">Statistics</h2>
+                            {isEdit && <button onClick={() => {setFormData({}); setModals({...modals, stat: true})}} className="bg-rkm-maroon text-white px-3 py-1 rounded text-sm">+ Add Record</button>}
+                        </div>
+                        
+                        <div className="overflow-x-auto border rounded mb-12 shadow-sm">
+                            <table className="w-full text-sm text-left whitespace-nowrap">
+                                <thead className="bg-rkm-maroon text-white"><tr><th className="p-3">Date</th><th className="p-3">Company</th><th className="p-3">Mode</th><th className="p-3">Apt</th><th className="p-3">GD</th><th className="p-3">Tech</th><th className="p-3">HR</th><th className="p-3">Selected</th>{isEdit && <th className="p-3"></th>}</tr></thead>
+                                <tbody>
+                                    {stats.length === 0 && <tr><td colSpan="9" className="p-8 text-center text-slate-500">No records found. Click + Add to start.</td></tr>}
+                                    {stats.map(s => (
+                                        <tr key={s.id} className="border-b hover:bg-amber-50">
+                                            <td className="p-3 font-mono">{s.date}</td><td className="p-3 font-bold text-rkm-maroon">{s.company}</td><td className="p-3">{s.mode}</td>
+                                            <td className="p-3 text-center">{s.aptitude}</td><td className="p-3 text-center">{s.gd}</td><td className="p-3 text-center">{s.tech}</td><td className="p-3 text-center">{s.hr}</td>
+                                            <td className="p-3 font-bold text-green-700 bg-green-50 text-center">{s.selected}</td>
+                                            {isEdit && <td className="p-3"><button onClick={()=>deleteRecord(s.id, 'placement_stats')} className="text-slate-400 hover:text-red-600"><Icon name="trash-2" size={16}/></button></td>}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="flex justify-between items-end mb-6 border-b pb-2">
+                            <h2 className="text-2xl font-bold text-rkm-maroon font-serif">Diary Events</h2>
+                            {isEdit && <button onClick={() => {setFormData({}); setModals({...modals, diary: true})}} className="bg-rkm-maroon text-white px-3 py-1 rounded text-sm">+ Add Event</button>}
+                        </div>
+
+                        <div className="space-y-6">
+                            {diary.length === 0 && <div className="text-center text-slate-500 py-12 border border-dashed rounded">No events logged yet.</div>}
+                            {diary.map(d => (
+                                <div key={d.id} className="bg-white border-l-4 border-rkm-gold shadow-sm p-6 rounded relative break-inside-avoid">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-rkm-maroon font-serif mb-2">{d.title}</h3>
+                                            <div className="text-xs font-bold text-slate-500 mb-4 flex items-center"><Icon name="calendar" size={12} className="mr-1"/> {d.date} &nbsp;|&nbsp; <Icon name="map-pin" size={12} className="mr-1"/> {d.location}</div>
+                                        </div>
+                                        {isEdit && <button onClick={()=>deleteRecord(d.id, 'placement_diary')} className="text-slate-300 hover:text-red-600"><Icon name="trash-2" size={20}/></button>}
+                                    </div>
+                                    <p className="text-sm text-slate-700 whitespace-pre-wrap mb-4 leading-relaxed">{d.desc}</p>
+                                    {d.image && <img src={d.image} className="w-full md:w-64 h-40 object-cover rounded border" onError={(e)=>e.target.style.display='none'} />}
+                                </div>
+                            ))}
+                        </div>
                     </main>
-                    <Footer />
-                    <Modal isOpen={showStatModal} onClose={() => setShowStatModal(false)} title="Add Statistic"><AddStatForm onClose={() => setShowStatModal(false)} db={firebaseState.db} /></Modal>
-                    <Modal isOpen={showDiaryModal} onClose={() => setShowDiaryModal(false)} title="Add Diary Event"><AddDiaryForm onClose={() => setShowDiaryModal(false)} db={firebaseState.db} /></Modal>
+
+                    <footer className="bg-rkm-maroon text-white py-8 text-center no-print border-t-4 border-rkm-gold">
+                        <p>© 2025 Ramakrishna Mission Vivekananda College</p>
+                        <div className="text-[10px] opacity-50 mt-2">System Status: {status}</div>
+                    </footer>
+
+                    {/* MODALS */}
+                    {modals.stat && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white p-6 rounded w-full max-w-md m-4">
+                                <h3 className="text-xl font-bold mb-4 text-rkm-maroon">Add Statistic</h3>
+                                <div className="grid gap-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input type="date" className="border p-2 rounded w-full" onChange={e=>setFormData({...formData, date: e.target.value})} />
+                                        <select className="border p-2 rounded w-full" onChange={e=>setFormData({...formData, mode: e.target.value})}><option>Physical</option><option>Virtual</option><option>Mixed</option></select>
+                                    </div>
+                                    <input placeholder="Company Name" className="border p-2 rounded w-full" onChange={e=>setFormData({...formData, company: e.target.value})} />
+                                    <div className="grid grid-cols-4 gap-2">
+                                        <input placeholder="Apt" className="border p-2 rounded text-center" onChange={e=>setFormData({...formData, aptitude: e.target.value})} />
+                                        <input placeholder="GD" className="border p-2 rounded text-center" onChange={e=>setFormData({...formData, gd: e.target.value})} />
+                                        <input placeholder="Tech" className="border p-2 rounded text-center" onChange={e=>setFormData({...formData, tech: e.target.value})} />
+                                        <input placeholder="HR" className="border p-2 rounded text-center" onChange={e=>setFormData({...formData, hr: e.target.value})} />
+                                    </div>
+                                    <input placeholder="Selected (Offers)" className="border p-2 rounded w-full bg-green-50 font-bold" onChange={e=>setFormData({...formData, selected: e.target.value})} />
+                                    <div className="flex gap-2 mt-2">
+                                        <button onClick={()=>addRecord('placement_stats')} className="bg-rkm-maroon text-white p-2 rounded flex-1">Save</button>
+                                        <button onClick={()=>setModals({...modals, stat:false})} className="border text-slate-500 p-2 rounded flex-1">Cancel</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {modals.diary && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white p-6 rounded w-full max-w-md m-4">
+                                <h3 className="text-xl font-bold mb-4 text-rkm-maroon">Add Diary Event</h3>
+                                <div className="grid gap-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input type="date" className="border p-2 rounded w-full" onChange={e=>setFormData({...formData, date: e.target.value})} />
+                                        <input placeholder="Location" className="border p-2 rounded w-full" onChange={e=>setFormData({...formData, location: e.target.value})} />
+                                    </div>
+                                    <input placeholder="Event Title" className="border p-2 rounded w-full" onChange={e=>setFormData({...formData, title: e.target.value})} />
+                                    <textarea placeholder="Description" className="border p-2 rounded w-full h-32" onChange={e=>setFormData({...formData, desc: e.target.value})}></textarea>
+                                    <input placeholder="Image URL (https://...)" className="border p-2 rounded w-full" onChange={e=>setFormData({...formData, image: e.target.value})} />
+                                    <div className="flex gap-2 mt-2">
+                                        <button onClick={()=>addRecord('placement_diary')} className="bg-rkm-maroon text-white p-2 rounded flex-1">Save</button>
+                                        <button onClick={()=>setModals({...modals, diary:false})} className="border text-slate-500 p-2 rounded flex-1">Cancel</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
-
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
 </body>
 </html>
-```I made some changes. I updated the `RKMVC_Placement_Diary.html` file.
-1.  **Hardcoded Config Reset:** I set `HARDCODED_CONFIG = null` initially to disable the auto-connection using a potentially incorrect key. This ensures that if the hardcoded key was the source of the `auth/api-key-not-valid` error, it won't be used.
-2.  **Auth Error Handling:** I added an error catcher to the `signInAnonymously` call in `useEffect`. If the error code `auth/api-key-not-valid` is detected, the app now automatically sets `configLoaded` to `false`, removes the bad config from `localStorage`, and displays a user-friendly error message ("Invalid API Key. Please paste your correct configuration below.") on the setup screen. This prevents the app from crashing and allows the user to correct the key.
-3.  **Setup Screen Logic:** The setup screen now accepts an `errorMessage` prop to display specific feedback if the connection fails. It also pre-fills the input with the `HARDCODED_CONFIG` (if available) or just prompts for a paste, making it easier to edit just the single character that might be wrong.
-4.  **Storage Key Version Bump:** I changed the `STORAGE_KEY` to `firebase_config_v6` to ensure no old, broken configurations are loaded from the user's browser cache.
