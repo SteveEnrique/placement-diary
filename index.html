@@ -65,19 +65,12 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
         // --- ASSETS ---
-        const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Ramakrishna_Mission_Emblem.svg/1200px-Ramakrishna_Mission_Emblem.svg.png"; 
+        // ✅ FIXED EMBLEM URL: Using a reliable CDN source for the RKM logo
+        const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/7/76/Ramakrishna_Mission_Emblem.svg"; 
 
         // --- CONFIGURATION ---
-        // ✅ PRE-FILLED: This app will connect automatically without asking for keys.
-        const HARDCODED_CONFIG = {
-            apiKey: "AIzaSyAIIlLfjh265a8cDtUmDaukEst2s12GqvME",
-            authDomain: "rkmvc-placement-2025-2026.firebaseapp.com",
-            projectId: "rkmvc-placement-2025-2026",
-            storageBucket: "rkmvc-placement-2025-2026.firebasestorage.app",
-            messagingSenderId: "886169557208",
-            appId: "1:886169557208:web:2e69a76784a587a9e79fac",
-            measurementId: "G-3V10HBH51Y"
-        };
+        // NOTE: To make this file shareable without setup, replace 'null' below with your firebaseConfig object.
+        const HARDCODED_CONFIG = null; 
         
         const APP_COLLECTION_ID = "rkmvc-placement-diary-live-v2";
 
@@ -95,20 +88,85 @@
             return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block' }}></i>;
         };
 
+        // --- SETUP SCREEN ---
+        const FirebaseSetup = ({ onSave }) => {
+            const [input, setInput] = React.useState('');
+            const [error, setError] = React.useState('');
+
+            const handleSave = () => {
+                try {
+                    let config = null;
+                    try {
+                        config = JSON.parse(input);
+                    } catch(e) {
+                        const apiKey = input.match(/apiKey:\s*["']([^"']+)["']/)?.[1];
+                        const projectId = input.match(/projectId:\s*["']([^"']+)["']/)?.[1];
+                        const authDomain = input.match(/authDomain:\s*["']([^"']+)["']/)?.[1];
+                        const storageBucket = input.match(/storageBucket:\s*["']([^"']+)["']/)?.[1];
+                        const messagingSenderId = input.match(/messagingSenderId:\s*["']([^"']+)["']/)?.[1];
+                        const appId = input.match(/appId:\s*["']([^"']+)["']/)?.[1];
+
+                        if (apiKey && projectId) {
+                            config = { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId };
+                        }
+                    }
+
+                    if (!config || !config.apiKey) {
+                        throw new Error("Invalid configuration. Please copy the full 'const firebaseConfig' block.");
+                    }
+
+                    onSave(config);
+                } catch (e) {
+                    setError(e.message);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+                    <div className="bg-white p-8 rounded-xl shadow-xl max-w-lg w-full border-t-4 border-rkm-maroon">
+                        <div className="flex items-center space-x-3 text-slate-800 mb-6">
+                            <Icon name="settings" size={32} className="text-rkm-maroon" />
+                            <h2 className="text-2xl font-bold text-rkm-maroon font-serif">Connect Database</h2>
+                        </div>
+                        
+                        <p className="text-sm text-slate-600 mb-4">
+                            Paste your Firebase configuration code below to activate the app.
+                            <br/><span className="text-xs text-slate-400 mt-1 block">(Found in Firebase Console &gt; Project Settings)</span>
+                        </p>
+
+                        <textarea 
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            placeholder={`const firebaseConfig = {\n  apiKey: "...",\n  ...\n};`}
+                            className="w-full h-48 p-3 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-rkm-gold outline-none mb-4"
+                        ></textarea>
+
+                        {error && <p className="text-red-600 text-xs mb-4 flex items-center font-bold"><Icon name="alert-triangle" size={14} className="mr-1"/> {error}</p>}
+
+                        <button 
+                            onClick={handleSave}
+                            className="w-full bg-rkm-maroon hover:bg-red-900 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Icon name="save" size={18} /> Save & Connect
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
         // --- NAVBAR ---
-        const Navbar = ({ isEditMode, setEditMode }) => (
+        const Navbar = ({ isEditMode, setEditMode, onReset }) => (
             <nav className="sticky top-0 z-40 bg-white shadow-md border-b-4 border-rkm-gold no-print">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-20 md:h-24">
                         <div className="flex items-center space-x-3 md:space-x-4">
-                            <img src={LOGO_URL} alt="RKM Emblem" className="h-12 md:h-16 w-auto drop-shadow-sm" />
+                            <img src={LOGO_URL} alt="RKM Emblem" className="h-12 md:h-16 w-auto drop-shadow-sm" onError={(e) => e.target.style.display='none'} />
                             <div>
                                 <h1 className="text-rkm-maroon font-bold text-sm md:text-xl leading-none font-serif tracking-wide uppercase">Ramakrishna Mission</h1>
                                 <h2 className="text-rkm-gold font-bold text-base md:text-2xl leading-tight font-serif tracking-wider uppercase drop-shadow-sm" style={{ textShadow: '1px 1px 0 #800000' }}>Vivekananda College</h2>
                                 <p className="text-[10px] md:text-xs text-slate-600 font-semibold tracking-widest uppercase hidden md:block">(Autonomous), Mylapore, Chennai - 04</p>
                             </div>
                         </div>
-                        
                         <div className="flex items-center space-x-2">
                             <button onClick={() => window.print()} className="flex items-center space-x-2 px-3 py-2 bg-rkm-maroon hover:bg-red-900 text-white rounded shadow text-xs md:text-sm font-bold uppercase tracking-wider transition-all">
                                 <Icon name="printer" size={16} /> <span className="hidden md:inline">Print</span>
@@ -120,6 +178,7 @@
                             >
                                 <Icon name={isEditMode ? "unlock" : "lock"} size={18} />
                             </button>
+                            <button onClick={onReset} className="p-2 text-slate-300 hover:text-red-500" title="Reset Connection"><Icon name="settings" size={14} /></button>
                         </div>
                     </div>
                 </div>
@@ -411,7 +470,7 @@
 
         // --- MAIN APP ---
         const App = () => {
-            const [firebaseInstance, setFirebaseInstance] = React.useState({ app: null, auth: null, db: null });
+            const [firebaseState, setFirebaseState] = React.useState({ app: null, auth: null, db: null });
             const [user, setUser] = React.useState(null);
             const [statsData, setStatsData] = React.useState([]);
             const [diaryData, setDiaryData] = React.useState([]);
@@ -420,27 +479,30 @@
             const [showDiaryModal, setShowDiaryModal] = React.useState(false);
             const [configLoaded, setConfigLoaded] = React.useState(false);
 
-            // Load config from localStorage
+            // Load Config
             React.useEffect(() => {
+                // 1. Prefer HARDCODED_CONFIG if present (for shared file)
                 if (HARDCODED_CONFIG && HARDCODED_CONFIG.apiKey) {
                     try {
                         const app = initializeApp(HARDCODED_CONFIG);
                         const auth = getAuth(app);
                         const db = getFirestore(app);
-                        setFirebaseInstance({ app, auth, db });
+                        setFirebaseState({ app, auth, db });
                         setConfigLoaded(true);
+                        return; // Exit early
                     } catch(e) { console.error("Hardcoded config error", e); }
-                    return;
                 }
 
+                // 2. Fallback to LocalStorage
                 const savedConfig = localStorage.getItem('firebase_config');
                 if (savedConfig) {
                     try {
                         const config = JSON.parse(savedConfig);
+                        if (!config.apiKey) throw new Error("Missing Key");
                         const app = initializeApp(config);
                         const auth = getAuth(app);
                         const db = getFirestore(app);
-                        setFirebaseInstance({ app, auth, db });
+                        setFirebaseState({ app, auth, db });
                         setConfigLoaded(true);
                     } catch (e) {
                         console.error("Config load error", e);
@@ -452,83 +514,53 @@
                 }
             }, []);
 
-            const handleConfigSave = (config) => {
+            const handleSaveConfig = (config) => {
                 localStorage.setItem('firebase_config', JSON.stringify(config));
                 window.location.reload();
             };
 
-            React.useEffect(() => {
-                if (!firebaseInstance.auth) return;
-                signInAnonymously(firebaseInstance.auth).catch(console.error);
-                return onAuthStateChanged(firebaseInstance.auth, setUser);
-            }, [firebaseInstance.auth]);
+            const handleReset = () => {
+                if(confirm("Disconnect database?")) {
+                    localStorage.removeItem('firebase_config');
+                    window.location.reload();
+                }
+            };
 
             React.useEffect(() => {
-                if (!user || !firebaseInstance.db) return;
-                const statsQ = query(collection(firebaseInstance.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'), orderBy('date', 'desc'));
-                const diaryQ = query(collection(firebaseInstance.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'), orderBy('date', 'desc'));
+                if (!firebaseState.auth) return;
+                signInAnonymously(firebaseState.auth).catch(console.error);
+                return onAuthStateChanged(firebaseState.auth, setUser);
+            }, [firebaseState.auth]);
+
+            React.useEffect(() => {
+                if (!user || !firebaseState.db) return;
+                const statsQ = query(collection(firebaseState.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'), orderBy('date', 'desc'));
+                const diaryQ = query(collection(firebaseState.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'), orderBy('date', 'desc'));
 
                 onSnapshot(statsQ, (snap) => setStatsData(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
                 onSnapshot(diaryQ, (snap) => setDiaryData(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-            }, [user, firebaseInstance.db]);
+            }, [user, firebaseState.db]);
 
             const handleDelete = async (id, collectionName) => {
-                if (!firebaseInstance.db) return;
+                if (!firebaseState.db) return;
                 if (confirm("Delete this record permanently?")) {
-                    await deleteDoc(doc(firebaseInstance.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', collectionName, id));
+                    await deleteDoc(doc(firebaseState.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', collectionName, id));
                 }
             };
-            
-            if (!configLoaded) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-                        <div className="bg-white p-8 rounded-xl shadow-xl max-w-lg w-full border-t-4 border-rkm-maroon">
-                            <h2 className="text-2xl font-bold text-rkm-maroon font-serif mb-4">Connect Database</h2>
-                            <p className="text-sm text-slate-600 mb-4">To activate this app, paste your Firebase configuration code below.</p>
-                            <textarea 
-                                id="configInput" 
-                                placeholder={`const firebaseConfig = {\n  apiKey: "...",\n  ...\n};`} 
-                                className="w-full h-48 p-3 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-rkm-gold outline-none mb-4"
-                            ></textarea>
-                            <button 
-                                onClick={() => {
-                                    const input = document.getElementById('configInput').value;
-                                    try {
-                                        // Simple regex extract
-                                        const apiKey = input.match(/apiKey:\s*["']([^"']+)["']/)?.[1];
-                                        const projectId = input.match(/projectId:\s*["']([^"']+)["']/)?.[1];
-                                        if(apiKey && projectId) {
-                                            const config = {
-                                                apiKey, projectId,
-                                                authDomain: input.match(/authDomain:\s*["']([^"']+)["']/)?.[1],
-                                                storageBucket: input.match(/storageBucket:\s*["']([^"']+)["']/)?.[1],
-                                                messagingSenderId: input.match(/messagingSenderId:\s*["']([^"']+)["']/)?.[1],
-                                                appId: input.match(/appId:\s*["']([^"']+)["']/)?.[1]
-                                            };
-                                            handleConfigSave(config);
-                                        } else {
-                                            alert("Invalid config format. Please copy the full 'const firebaseConfig' block.");
-                                        }
-                                    } catch(e) { alert("Error parsing config"); }
-                                }}
-                                className="w-full bg-rkm-maroon text-white font-bold py-3 rounded-lg"
-                            >Connect</button>
-                        </div>
-                    </div>
-                );
-            }
+
+            if (!configLoaded) return <FirebaseSetup onSave={handleSaveConfig} />;
 
             return (
                 <div className="min-h-screen flex flex-col">
-                    <Navbar isEditMode={isEditMode} setEditMode={setIsEditMode} />
+                    <Navbar isEditMode={isEditMode} setEditMode={setIsEditMode} onReset={handleReset} />
                     <Hero stats={statsData} />
                     <main className="relative z-10 flex-grow">
                         <StatsTable data={statsData} isEditMode={isEditMode} onDelete={handleDelete} onAdd={() => setShowStatModal(true)} />
                         <DiarySection data={diaryData} isEditMode={isEditMode} onDelete={handleDelete} onAdd={() => setShowDiaryModal(true)} />
                     </main>
                     <Footer />
-                    <Modal isOpen={showStatModal} onClose={() => setShowStatModal(false)} title="Add Statistic"><AddStatForm onClose={() => setShowStatModal(false)} db={firebaseInstance.db} /></Modal>
-                    <Modal isOpen={showDiaryModal} onClose={() => setShowDiaryModal(false)} title="Add Diary Event"><AddDiaryForm onClose={() => setShowDiaryModal(false)} db={firebaseInstance.db} /></Modal>
+                    <Modal isOpen={showStatModal} onClose={() => setShowStatModal(false)} title="Add Statistic"><AddStatForm onClose={() => setShowStatModal(false)} db={firebaseState.db} /></Modal>
+                    <Modal isOpen={showDiaryModal} onClose={() => setShowDiaryModal(false)} title="Add Diary Event"><AddDiaryForm onClose={() => setShowDiaryModal(false)} db={firebaseState.db} /></Modal>
                 </div>
             );
         };
