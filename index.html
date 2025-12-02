@@ -24,12 +24,11 @@
 <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
     <script type="text/babel" data-type="module">
+        // REMOVED AUTH IMPORT to stop the crash
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
-        // --- CONFIGURATION ---
-        // ✅ Hardcoded keys to ensure connection
+        // ✅ YOUR KEYS (Hardcoded)
         const HARDCODED_CONFIG = {
             apiKey: "AIzaSyAIIlLfjh265a8cDtUmDaukEst2s12GqvME",
             authDomain: "rkmvc-placement-2025-2026.firebaseapp.com",
@@ -44,102 +43,75 @@
         const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Ramakrishna_Mission_Emblem.svg/1200px-Ramakrishna_Mission_Emblem.svg.png";
         const Icon = ({ name, size = 20, className = "" }) => { React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, []); return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block' }}></i>; };
 
-        // --- APP COMPONENT ---
         const App = () => {
-            const [fb, setFb] = React.useState({ app: null, auth: null, db: null });
-            const [user, setUser] = React.useState(null);
+            const [db, setDb] = React.useState(null);
             const [stats, setStats] = React.useState([]);
             const [diary, setDiary] = React.useState([]);
             const [isEdit, setIsEdit] = React.useState(false);
             const [modals, setModals] = React.useState({ stat: false, diary: false });
             const [formData, setFormData] = React.useState({});
             
-            // DIAGNOSTIC STATES
+            // STATUS
             const [status, setStatus] = React.useState("Initializing...");
-            const [dbError, setDbError] = React.useState("");
 
-            // 1. Initialize Firebase
+            // 1. Initialize Firebase (Without Auth)
             React.useEffect(() => {
                 try {
                     const app = initializeApp(HARDCODED_CONFIG);
-                    setFb({ app, auth: getAuth(app), db: getFirestore(app) });
-                    setStatus("Firebase Initialized. Authenticating...");
+                    const database = getFirestore(app);
+                    setDb(database);
+                    setStatus("Connected to Database");
                 } catch(e) { setStatus("Config Error: " + e.message); }
             }, []);
 
-            // 2. Authenticate
+            // 2. Fetch Data (Directly, no user check)
             React.useEffect(() => {
-                if (fb.auth) {
-                    signInAnonymously(fb.auth)
-                        .then(() => setStatus("Authenticated. Fetching Data..."))
-                        .catch(e => {
-                            setStatus("Auth Failed.");
-                            setDbError(e.message);
-                        });
-                    onAuthStateChanged(fb.auth, setUser);
-                }
-            }, [fb.auth]);
-
-            // 3. Fetch Data (Simple Query, No Sorting in DB to avoid index errors)
-            React.useEffect(() => {
-                if (user && fb.db) {
-                    const q1 = query(collection(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'));
-                    const q2 = query(collection(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'));
+                if (db) {
+                    // Simple query to avoid index issues
+                    const q1 = query(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'));
+                    const q2 = query(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'));
 
                     const unsub1 = onSnapshot(q1, 
                         (s) => {
                             setStats(s.docs.map(d => ({id:d.id, ...d.data()})));
-                            setStatus("Data Loaded Successfully.");
+                            setStatus("Data Loaded");
                         },
-                        (e) => {
-                            setDbError("Read Error: " + e.message);
-                            setStatus("Read Failed");
-                        }
+                        (e) => setStatus("Read Error: " + e.message)
                     );
 
-                    const unsub2 = onSnapshot(q2, 
-                        (s) => setDiary(s.docs.map(d => ({id:d.id, ...d.data()}))),
-                        (e) => console.error("Diary Read Error", e)
-                    );
-
+                    const unsub2 = onSnapshot(q2, (s) => setDiary(s.docs.map(d => ({id:d.id, ...d.data()}))));
                     return () => { unsub1(); unsub2(); };
                 }
-            }, [user, fb.db]);
+            }, [db]);
 
             // Sort Data in Browser
             const sortedStats = [...stats].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
             const sortedDiary = [...diary].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-            // Helper to parse numbers
             const getNum = (v) => { const n = parseInt(String(v).replace(/\D/g,'')); return isNaN(n)?0:n; };
 
             const addRecord = async (type) => {
-                if (!fb.db) return alert("Database not connected");
+                if (!db) return alert("Database not connected");
                 try {
-                    await addDoc(collection(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type), { ...formData, createdAt: serverTimestamp() });
+                    await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type), { ...formData, createdAt: serverTimestamp() });
                     alert("Saved Successfully!");
                     setModals({ stat: false, diary: false });
                     setFormData({});
                 } catch (e) {
-                    alert("SAVE FAILED: " + e.message + "\n\nGo to Firebase Console > Firestore Database > Rules. Change 'allow read, write: if false;' to 'if true;'");
+                    alert("SAVE FAILED: " + e.message);
                 }
             };
 
             const deleteRecord = async (id, type) => {
                 if (confirm("Delete this record?")) {
                      try {
-                        await deleteDoc(doc(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type, id));
+                        await deleteDoc(doc(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type, id));
                      } catch(e) { alert("Delete Failed: " + e.message); }
                 }
             };
 
             return (
                 <div className="min-h-screen flex flex-col">
-                    {/* DIAGNOSTIC BAR */}
-                    <div className={`fixed bottom-0 left-0 right-0 text-white text-xs p-1 text-center z-50 no-print ${dbError ? 'bg-red-600' : 'bg-slate-800'}`}>
-                        STATUS: {status} | {dbError ? "ERROR: " + dbError : `Stats: ${stats.length} | Diary: ${diary.length}`}
-                    </div>
-
                     <nav className="sticky top-0 z-40 bg-white shadow-md border-b-4 border-rkm-gold no-print">
                         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
                             <div className="flex items-center space-x-4">
@@ -168,6 +140,7 @@
                     </div>
 
                     <main className="max-w-7xl mx-auto px-4 py-12 w-full flex-grow">
+                        {/* STATS SECTION */}
                         <div className="flex justify-between items-end mb-6 border-b pb-2">
                             <h2 className="text-2xl font-bold text-rkm-maroon font-serif">Statistics</h2>
                             {isEdit && <button onClick={() => {setFormData({}); setModals({...modals, stat: true})}} className="bg-rkm-maroon text-white px-3 py-1 rounded text-sm">+ Add Record</button>}
@@ -190,6 +163,7 @@
                             </table>
                         </div>
 
+                        {/* DIARY SECTION */}
                         <div className="flex justify-between items-end mb-6 border-b pb-2">
                             <h2 className="text-2xl font-bold text-rkm-maroon font-serif">Diary Events</h2>
                             {isEdit && <button onClick={() => {setFormData({}); setModals({...modals, diary: true})}} className="bg-rkm-maroon text-white px-3 py-1 rounded text-sm">+ Add Event</button>}
@@ -215,6 +189,7 @@
 
                     <footer className="bg-rkm-maroon text-white py-8 text-center no-print border-t-4 border-rkm-gold">
                         <p>© 2025 Ramakrishna Mission Vivekananda College</p>
+                        <div className="text-[10px] opacity-50 mt-2">{status}</div>
                     </footer>
 
                     {/* MODALS */}
