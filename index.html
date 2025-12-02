@@ -28,13 +28,8 @@
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
-        const APP_COLLECTION_ID = "rkmvc-placement-diary-live-v2";
-        // Using official Wikimedia logo directly
-        const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Ramakrishna_Mission_Emblem.svg/1200px-Ramakrishna_Mission_Emblem.svg.png";
-        const Icon = ({ name, size = 20, className = "" }) => { React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, []); return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block' }}></i>; };
-
-        // CONFIGURATION: Replace NULL with your keys if you want to hardcode them later.
-        // For now, the Setup Screen will handle it.
+        // --- CONFIGURATION ---
+        // ✅ Hardcoded keys to ensure connection
         const HARDCODED_CONFIG = {
             apiKey: "AIzaSyAIIlLfjh265a8cDtUmDaukEst2s12GqvME",
             authDomain: "rkmvc-placement-2025-2026.firebaseapp.com",
@@ -45,25 +40,11 @@
             measurementId: "G-3V10HBH51Y"
         };
 
-        const FirebaseSetup = ({ onSave }) => {
-            const [input, setInput] = React.useState(JSON.stringify(HARDCODED_CONFIG, null, 2));
-            return (
-                <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-                    <div className="bg-white p-8 rounded-xl shadow-xl max-w-lg w-full border-t-4 border-rkm-maroon">
-                        <h2 className="text-2xl font-bold text-rkm-maroon mb-4">Connect Database</h2>
-                        <textarea value={input} onChange={(e) => setInput(e.target.value)} className="w-full h-48 p-3 text-xs border rounded mb-4 font-mono"></textarea>
-                        <button onClick={() => {
-                            try {
-                                const c = JSON.parse(input);
-                                if(c.apiKey) onSave(c);
-                                else alert("Invalid Config");
-                            } catch(e) { alert("Error parsing config"); }
-                        }} className="w-full bg-rkm-maroon text-white py-3 rounded font-bold">Connect</button>
-                    </div>
-                </div>
-            );
-        };
+        const APP_COLLECTION_ID = "rkmvc-placement-diary-live-v2";
+        const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Ramakrishna_Mission_Emblem.svg/1200px-Ramakrishna_Mission_Emblem.svg.png";
+        const Icon = ({ name, size = 20, className = "" }) => { React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, []); return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block' }}></i>; };
 
+        // --- APP COMPONENT ---
         const App = () => {
             const [fb, setFb] = React.useState({ app: null, auth: null, db: null });
             const [user, setUser] = React.useState(null);
@@ -72,34 +53,62 @@
             const [isEdit, setIsEdit] = React.useState(false);
             const [modals, setModals] = React.useState({ stat: false, diary: false });
             const [formData, setFormData] = React.useState({});
-            const [status, setStatus] = React.useState("Loading...");
+            
+            // DIAGNOSTIC STATES
+            const [status, setStatus] = React.useState("Initializing...");
+            const [dbError, setDbError] = React.useState("");
 
+            // 1. Initialize Firebase
             React.useEffect(() => {
-                // Always try hardcoded config first
                 try {
-                   const app = initializeApp(HARDCODED_CONFIG);
-                   setFb({ app, auth: getAuth(app), db: getFirestore(app) });
-                   setStatus("Auth Initialized...");
-                } catch(e) { setStatus("Config Error"); }
+                    const app = initializeApp(HARDCODED_CONFIG);
+                    setFb({ app, auth: getAuth(app), db: getFirestore(app) });
+                    setStatus("Firebase Initialized. Authenticating...");
+                } catch(e) { setStatus("Config Error: " + e.message); }
             }, []);
 
+            // 2. Authenticate
             React.useEffect(() => {
                 if (fb.auth) {
-                    signInAnonymously(fb.auth).then(() => setStatus("Connected")).catch(e => setStatus("Auth Failed: " + e.message));
+                    signInAnonymously(fb.auth)
+                        .then(() => setStatus("Authenticated. Fetching Data..."))
+                        .catch(e => {
+                            setStatus("Auth Failed.");
+                            setDbError(e.message);
+                        });
                     onAuthStateChanged(fb.auth, setUser);
                 }
             }, [fb.auth]);
 
+            // 3. Fetch Data (Simple Query, No Sorting in DB to avoid index errors)
             React.useEffect(() => {
                 if (user && fb.db) {
-                    // FIX: REMOVED orderBy to prevent "Missing Index" errors. Sorting is done in JS below.
                     const q1 = query(collection(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'));
                     const q2 = query(collection(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'));
 
-                    onSnapshot(q1, s => setStats(s.docs.map(d => ({id:d.id, ...d.data()}))));
-                    onSnapshot(q2, s => setDiary(s.docs.map(d => ({id:d.id, ...d.data()}))));
+                    const unsub1 = onSnapshot(q1, 
+                        (s) => {
+                            setStats(s.docs.map(d => ({id:d.id, ...d.data()})));
+                            setStatus("Data Loaded Successfully.");
+                        },
+                        (e) => {
+                            setDbError("Read Error: " + e.message);
+                            setStatus("Read Failed");
+                        }
+                    );
+
+                    const unsub2 = onSnapshot(q2, 
+                        (s) => setDiary(s.docs.map(d => ({id:d.id, ...d.data()}))),
+                        (e) => console.error("Diary Read Error", e)
+                    );
+
+                    return () => { unsub1(); unsub2(); };
                 }
             }, [user, fb.db]);
+
+            // Sort Data in Browser
+            const sortedStats = [...stats].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+            const sortedDiary = [...diary].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
             // Helper to parse numbers
             const getNum = (v) => { const n = parseInt(String(v).replace(/\D/g,'')); return isNaN(n)?0:n; };
@@ -107,24 +116,30 @@
             const addRecord = async (type) => {
                 if (!fb.db) return alert("Database not connected");
                 try {
-                    // Added serverTimestamp for sorting in JS
                     await addDoc(collection(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type), { ...formData, createdAt: serverTimestamp() });
-                    alert("Saved!");
+                    alert("Saved Successfully!");
                     setModals({ stat: false, diary: false });
                     setFormData({});
                 } catch (e) {
-                    alert("Error: " + e.message + "\nCheck Firebase Rules.");
+                    alert("SAVE FAILED: " + e.message + "\n\nGo to Firebase Console > Firestore Database > Rules. Change 'allow read, write: if false;' to 'if true;'");
                 }
             };
 
             const deleteRecord = async (id, type) => {
-                if (confirm("Delete?")) await deleteDoc(doc(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type, id));
+                if (confirm("Delete this record?")) {
+                     try {
+                        await deleteDoc(doc(fb.db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type, id));
+                     } catch(e) { alert("Delete Failed: " + e.message); }
+                }
             };
-
-            if (!fb.app) return <FirebaseSetup onSave={(c) => { const app = initializeApp(c); setFb({ app, auth: getAuth(app), db: getFirestore(app) }); }} />;
 
             return (
                 <div className="min-h-screen flex flex-col">
+                    {/* DIAGNOSTIC BAR */}
+                    <div className={`fixed bottom-0 left-0 right-0 text-white text-xs p-1 text-center z-50 no-print ${dbError ? 'bg-red-600' : 'bg-slate-800'}`}>
+                        STATUS: {status} | {dbError ? "ERROR: " + dbError : `Stats: ${stats.length} | Diary: ${diary.length}`}
+                    </div>
+
                     <nav className="sticky top-0 z-40 bg-white shadow-md border-b-4 border-rkm-gold no-print">
                         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
                             <div className="flex items-center space-x-4">
@@ -163,12 +178,12 @@
                                 <thead className="bg-rkm-maroon text-white"><tr><th className="p-3">Date</th><th className="p-3">Company</th><th className="p-3">Mode</th><th className="p-3">Apt</th><th className="p-3">GD</th><th className="p-3">Tech</th><th className="p-3">HR</th><th className="p-3">Selected</th>{isEdit && <th className="p-3"></th>}</tr></thead>
                                 <tbody>
                                     {stats.length === 0 && <tr><td colSpan="9" className="p-8 text-center text-slate-500">No records found. Click + Add to start.</td></tr>}
-                                    {stats.map(s => (
+                                    {sortedStats.map(s => (
                                         <tr key={s.id} className="border-b hover:bg-amber-50">
                                             <td className="p-3 font-mono">{s.date}</td><td className="p-3 font-bold text-rkm-maroon">{s.company}</td><td className="p-3">{s.mode}</td>
                                             <td className="p-3 text-center">{s.aptitude}</td><td className="p-3 text-center">{s.gd}</td><td className="p-3 text-center">{s.tech}</td><td className="p-3 text-center">{s.hr}</td>
                                             <td className="p-3 font-bold text-green-700 bg-green-50 text-center">{s.selected}</td>
-                                            {isEdit && <td className="p-3"><button onClick={()=>deleteRecord(s.id, 'placement_stats')} className="text-slate-400 hover:text-red-600"><Icon name="trash-2" size={16}/></button></td>}
+                                            {isEdit && <td className="p-3"><button onClick={()=>deleteRecord(s.id, 'placement_stats')} className="text-red-500"><Icon name="trash-2" size={16}/></button></td>}
                                         </tr>
                                     ))}
                                 </tbody>
@@ -182,7 +197,7 @@
 
                         <div className="space-y-6">
                             {diary.length === 0 && <div className="text-center text-slate-500 py-12 border border-dashed rounded">No events logged yet.</div>}
-                            {diary.map(d => (
+                            {sortedDiary.map(d => (
                                 <div key={d.id} className="bg-white border-l-4 border-rkm-gold shadow-sm p-6 rounded relative break-inside-avoid">
                                     <div className="flex justify-between items-start">
                                         <div>
@@ -200,7 +215,6 @@
 
                     <footer className="bg-rkm-maroon text-white py-8 text-center no-print border-t-4 border-rkm-gold">
                         <p>© 2025 Ramakrishna Mission Vivekananda College</p>
-                        <div className="text-[10px] opacity-50 mt-2">System Status: {status}</div>
                     </footer>
 
                     {/* MODALS */}
