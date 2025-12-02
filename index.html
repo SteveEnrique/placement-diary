@@ -24,11 +24,11 @@
 <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
     <script type="text/babel" data-type="module">
-        // REMOVED AUTH IMPORT to stop the crash
+        // 1. ONLY IMPORT APP AND FIRESTORE (No Auth)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
-        // ✅ YOUR KEYS (Hardcoded)
+        // 2. CONFIGURATION (Hardcoded from your screenshot)
         const HARDCODED_CONFIG = {
             apiKey: "AIzaSyAIIlLfjh265a8cDtUmDaukEst2s12GqvME",
             authDomain: "rkmvc-placement-2025-2026.firebaseapp.com",
@@ -40,7 +40,9 @@
         };
 
         const APP_COLLECTION_ID = "rkmvc-placement-diary-live-v2";
+        // Official Logo
         const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Ramakrishna_Mission_Emblem.svg/1200px-Ramakrishna_Mission_Emblem.svg.png";
+        
         const Icon = ({ name, size = 20, className = "" }) => { React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, []); return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block' }}></i>; };
 
         const App = () => {
@@ -50,26 +52,24 @@
             const [isEdit, setIsEdit] = React.useState(false);
             const [modals, setModals] = React.useState({ stat: false, diary: false });
             const [formData, setFormData] = React.useState({});
-            
-            // STATUS
             const [status, setStatus] = React.useState("Initializing...");
 
-            // 1. Initialize Firebase (Without Auth)
+            // 1. Initialize DB immediately (No Login)
             React.useEffect(() => {
                 try {
                     const app = initializeApp(HARDCODED_CONFIG);
                     const database = getFirestore(app);
                     setDb(database);
-                    setStatus("Connected to Database");
+                    setStatus("Connected. Waiting for data...");
                 } catch(e) { setStatus("Config Error: " + e.message); }
             }, []);
 
-            // 2. Fetch Data (Directly, no user check)
+            // 2. Fetch Data
             React.useEffect(() => {
                 if (db) {
-                    // Simple query to avoid index issues
-                    const q1 = query(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'));
-                    const q2 = query(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'));
+                    // Simplest query possible
+                    const q1 = collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats');
+                    const q2 = collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary');
 
                     const unsub1 = onSnapshot(q1, 
                         (s) => {
@@ -98,7 +98,7 @@
                     setModals({ stat: false, diary: false });
                     setFormData({});
                 } catch (e) {
-                    alert("SAVE FAILED: " + e.message);
+                    alert("SAVE FAILED: " + e.message + "\n\nCheck Firebase Console > Rules. Must be 'allow read, write: if true;'");
                 }
             };
 
