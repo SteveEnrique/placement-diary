@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RKMVC Placement Diary</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { rkm: { maroon: '#800000', gold: '#FFC107', cream: '#FFFDD0' } },
+                    fontFamily: { serif: ['"Noto Serif"', 'serif'], sans: ['"Noto Sans"', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Serif:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans', sans-serif; }
+        h1, h2, h3, .brand-font { font-family: 'Noto Serif', serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @media print {
+            body { background: white; }
+            .no-print { display: none !important; }
+            .print-break-inside-avoid { break-inside: avoid; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="root"></div>
+    
+    <!-- FIREBASE COMPAT LIBRARIES (The Stable Version) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <script>
+        // ✅ GLOBAL CONFIGURATION (Your New Keys)
+        const firebaseConfig = {
+            apiKey: "AIzaSyB3Usm_79MWUgKgNT_4_ibYwJJxV6eS1Ws",
+            authDomain: "placement-diary-v2-2818a.firebaseapp.com",
+            projectId: "placement-diary-v2-2818a",
+            storageBucket: "placement-diary-v2-2818a.firebasestorage.app",
+            messagingSenderId: "834821644942",
+            appId: "1:834821644942:web:d9613d8c67f4a8d7a55fdf"
+        };
+
+        // Initialize immediately (Prevents "Config Not Found" error)
+        try {
+            firebase.initializeApp(firebaseConfig);
+            window.db = firebase.firestore();
+            window.auth = firebase.auth();
+            // Silent Auth
+            window.auth.signInAnonymously().catch(e => console.error("Auth Error", e));
+        } catch(e) {
+            console.error("Firebase Init Error", e);
+        }
+    </script>
+
+    <script type="text/babel">
+        const APP_COLLECTION_ID = "placement_data_v1";
+        const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Ramakrishna_Mission_Emblem.svg/1200px-Ramakrishna_Mission_Emblem.svg.png"; 
+
+        // --- SOUND ENGINE ---
+        const SoundEngine = {
+            ctx: null,
+            enabled: true,
+            init: () => { if (!SoundEngine.ctx) { const AC = window.AudioContext || window.webkitAudioContext; SoundEngine.ctx = new AC(); } },
+            play: (freq, type) => {
+                if (!SoundEngine.enabled || !SoundEngine.ctx) return;
+                const o = SoundEngine.ctx.createOscillator();
+                const g = SoundEngine.ctx.createGain();
+                o.type = type; o.frequency.value = freq;
+                o.connect(g); g.connect(SoundEngine.ctx.destination);
+                o.start(); g.gain.exponentialRampToValueAtTime(0.00001, SoundEngine.ctx.currentTime + 0.1);
+                o.stop(SoundEngine.ctx.currentTime + 0.1);
+            },
+            click: () => { SoundEngine.init(); SoundEngine.play(600, 'sine'); },
+            success: () => { SoundEngine.init(); setTimeout(()=>SoundEngine.play(600,'sine'),0); setTimeout(()=>SoundEngine.play(800,'sine'),100); },
+            error: () => { SoundEngine.init(); SoundEngine.play(150, 'sawtooth'); }
+        };
+
+        // --- HELPERS ---
+        const Icon = ({ name, size = 20, className = "" }) => { React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]); return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block', verticalAlign: 'middle' }}></i>; };
+        const safeParseInt = (val) => { const num = parseInt(String(val).replace(/\D/g, '')); return isNaN(num) ? 0 : num; };
+
+        // --- COMPONENTS ---
+
+        const Navbar = ({ activeTab, setActiveTab, isEditMode, setEditMode }) => (
+            <nav className="sticky top-0 z-50 bg-white shadow-md border-b-4 border-rkm-gold no-print">
+                <div className="max-w-7xl mx-auto px-4">
+                    <div className="flex flex-col md:flex-row justify-between items-center h-auto md:h-20 py-2 md:py-0 gap-4">
+                        <div className="text-center md:text-left mb-2 md:mb-0 cursor-pointer" onClick={() => { SoundEngine.click(); window.scrollTo(0,0); }}>
+                            <h1 className="text-rkm-maroon font-bold text-lg md:text-xl uppercase tracking-wide leading-none">Ramakrishna Mission</h1>
+                            <h2 className="text-rkm-gold font-bold text-xl md:text-2xl uppercase leading-none" style={{textShadow: '1px 1px 0 #800000'}}>Vivekananda College</h2>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-[280px] md:max-w-none">
+                                {['stats', 'activities', 'officials', 'team'].map(tab => (
+                                    <button key={tab} onClick={() => { SoundEngine.click(); setActiveTab(tab); }} className={`px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-all uppercase whitespace-nowrap ${activeTab === tab ? 'bg-rkm-maroon text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}>{tab}</button>
+                                ))}
+                            </div>
+                            <button onClick={() => { SoundEngine.click(); window.print(); }} className="text-slate-500 hover:text-rkm-maroon cursor-pointer" title="Print"><Icon name="printer" size={20} /></button>
+                            <button onClick={() => { SoundEngine.click(); setEditMode(!isEditMode); }} className={`text-slate-500 hover:text-rkm-maroon cursor-pointer ${isEditMode ? 'text-red-600' : ''}`} title="Admin Mode"><Icon name={isEditMode ? "unlock" : "lock"} size={20} /></button>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        );
+
+        // --- QUOTE BANNER ---
+        const QUOTES = [
+            "Arise, awake, and stop not till the goal is reached.",
+            "All power is within you; you can do anything and everything.",
+            "Take up one idea. Make that one idea your life.",
+            "Education is the manifestation of the perfection already in man.",
+            "Strength is Life, Weakness is Death."
+        ];
+        const QuoteBanner = () => {
+            const [index, setIndex] = React.useState(0);
+            React.useEffect(() => { const t = setInterval(() => setIndex(p => (p+1)%QUOTES.length), 6000); return () => clearInterval(t); }, []);
+            return (
+                <div className="bg-rkm-maroon text-rkm-gold py-2 text-center no-print border-b border-rkm-gold/30 relative">
+                    <p className="font-serif italic text-sm md:text-base font-medium opacity-90">"{QUOTES[index]}"</p>
+                </div>
+            );
+        };
+
+        const StatsView = ({ data, isEditMode, onDelete, onAdd }) => {
+            const totalPlaced = data.reduce((acc, curr) => acc + safeParseInt(curr.selected), 0);
+            const totalCompanies = new Set(data.map(s => s.company)).size;
+            return (
+                <div className="animate-fade-in">
+                    <div className="bg-rkm-maroon text-white py-12 md:py-16 text-center relative overflow-hidden">
+                        <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(#FFC107 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
+                        <div className="relative z-10 container mx-auto px-4">
+                            <h2 className="text-3xl md:text-5xl font-bold font-serif mb-2">Placement Overview</h2>
+                            <p className="text-rkm-gold opacity-90 uppercase tracking-widest text-xs md:text-sm mb-10">Academic Year 2025-2026</p>
+                            <div className="flex justify-center gap-6 md:gap-12 max-w-4xl mx-auto">
+                                <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 w-48 md:w-64 border-t-4 border-rkm-gold">
+                                    <div className="text-5xl md:text-6xl font-bold text-white mb-2">{totalPlaced}</div>
+                                    <div className="text-xs md:text-sm text-rkm-gold uppercase font-bold tracking-widest">Offers Received</div>
+                                </div>
+                                <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 w-48 md:w-64 border-t-4 border-rkm-gold">
+                                    <div className="text-5xl md:text-6xl font-bold text-white mb-2">{totalCompanies}</div>
+                                    <div className="text-xs md:text-sm text-rkm-gold uppercase font-bold tracking-widest">Recruiters</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="max-w-7xl mx-auto px-4 -mt-8 relative z-20 pb-20">
+                        <div className="bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden">
+                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <h3 className="font-bold text-slate-700 flex items-center gap-2 text-lg"><Icon name="table" size={20}/> Detailed Statistics</h3>
+                                {isEditMode && <button onClick={onAdd} className="bg-rkm-maroon text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-red-900 transition shadow-md flex items-center gap-2"><Icon name="plus" size={14}/> Add Record</button>}
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left whitespace-nowrap">
+                                    <thead className="bg-slate-100 text-slate-600 border-b border-slate-200">
+                                        <tr>{['Date', 'Company', 'Mode', 'Apt', 'GD', 'Tech', 'HR', 'Selected'].map(h => <th key={h} className="px-6 py-4 font-bold uppercase text-xs tracking-wider">{h}</th>)}{isEditMode && <th></th>}</tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {data.length === 0 && <tr><td colSpan="9" className="p-12 text-center text-slate-400 italic bg-slate-50/30">No records yet.</td></tr>}
+                                        {data.map((row) => (
+                                            <tr key={row.id} className="hover:bg-amber-50/40 transition-colors">
+                                                <td className="px-6 py-4 font-mono text-slate-500 text-xs">{new Date(row.date).toLocaleDateString('en-GB')}</td>
+                                                <td className="px-6 py-4 font-bold text-rkm-maroon">{row.company}</td>
+                                                <td className="px-6 py-4"><span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${row.mode==='Virtual'?'bg-purple-50 text-purple-600 border-purple-100':'bg-blue-50 text-blue-600 border-blue-100'}`}>{row.mode}</span></td>
+                                                <td className="px-6 py-4 text-center text-slate-500">{row.aptitude}</td><td className="px-6 py-4 text-center text-slate-500">{row.gd}</td><td className="px-6 py-4 text-center text-slate-500">{row.tech}</td><td className="px-6 py-4 text-center text-slate-500">{row.hr}</td>
+                                                <td className="px-6 py-4 text-center"><span className="bg-green-100 text-green-800 px-3 py-1 rounded-full font-bold text-xs shadow-sm">{row.selected}</span></td>
+                                                {isEditMode && <td className="px-6 py-4 text-right"><button onClick={() => onDelete(row.id, 'placement_stats')} className="text-slate-300 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors"><Icon name="trash-2" size={16}/></button></td>}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const ActivitiesView = ({ data, isEditMode, onDelete, onAdd }) => {
+            return (
+                <div className="bg-slate-100 min-h-screen pb-20 animate-fade-in">
+                    <div className="bg-white border-b border-slate-200 pt-10 pb-4 mb-8 text-center shadow-sm">
+                        <h2 className="text-3xl md:text-4xl font-serif font-bold text-slate-800 mb-2">Activities Log</h2>
+                        <p className="text-slate-500 text-sm max-w-xl mx-auto mb-6">Chronological updates of all placement-related events.</p>
+                        {isEditMode && <button onClick={() => { SoundEngine.click(); onAdd(); }} className="mt-6 bg-rkm-maroon text-white px-6 py-2 rounded-full shadow hover:bg-red-900 transition font-bold text-sm uppercase tracking-wider flex items-center gap-2 mx-auto"><Icon name="pen-tool" size={14}/> Add Activity</button>}
+                    </div>
+                    <div className="max-w-3xl mx-auto px-4 space-y-10">
+                        {data.length === 0 && <div className="text-center text-slate-400 py-12 italic border-2 border-dashed border-slate-200 rounded-xl">No activities found.</div>}
+                        {data.map((item) => (
+                            <article key={item.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden group hover:shadow-lg transition-all duration-300">
+                                {item.image && (
+                                    <div className="w-full h-56 md:h-80 overflow-hidden bg-slate-100 relative">
+                                        <img src={item.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
+                                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-lg text-xs font-bold text-slate-700 shadow-sm flex items-center gap-1"><Icon name="calendar" size={12}/> {new Date(item.date).toLocaleDateString('en-GB')}</div>
+                                    </div>
+                                )}
+                                <div className="p-6 md:p-8">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+                                            {!item.image && <span className="flex items-center gap-1"><Icon name="calendar" size={12}/> {new Date(item.date).toLocaleDateString('en-GB')}</span>}
+                                            <span className={`px-2 py-1 rounded border ${item.category?.includes('Recruit') ? 'bg-blue-50 text-blue-600 border-blue-100' : item.category?.includes('Student') ? 'bg-green-50 text-green-600 border-green-100' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{item.category || 'General'}</span>
+                                        </div>
+                                        {isEditMode && <button onClick={() => onDelete(item.id, 'placement_diary')} className="text-slate-300 hover:text-red-600 p-1"><Icon name="trash-2" size={18}/></button>}
+                                    </div>
+                                    <div className="mb-2">
+                                        {item.location && <span className="inline-flex items-center text-xs font-bold text-rkm-gold uppercase tracking-wider mb-2"><Icon name="map-pin" size={12} className="mr-1"/> {item.location}</span>}
+                                        <h3 className="text-2xl font-serif font-bold text-slate-800 leading-tight group-hover:text-rkm-maroon transition-colors">{item.title}</h3>
+                                    </div>
+                                    <div className="prose prose-slate max-w-none border-t border-slate-100 pt-4 mt-4"><p className="text-slate-600 leading-relaxed text-base whitespace-pre-wrap font-light">{item.desc}</p></div>
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const PeopleView = ({ data, title, subtitle, isEditMode, onDelete, onAdd, type }) => (
+            <div className="bg-slate-50 min-h-screen pb-20 animate-fade-in">
+                <div className="bg-rkm-maroon text-white py-12 text-center mb-8 shadow-inner">
+                    <h2 className="text-3xl font-serif font-bold mb-2">{title}</h2>
+                    <p className="opacity-80 max-w-xl mx-auto text-sm">{subtitle}</p>
+                </div>
+                <div className="max-w-5xl mx-auto px-4">
+                    {isEditMode && <div className="text-center mb-8"><button onClick={() => { SoundEngine.click(); onAdd(); }} className="bg-rkm-gold text-rkm-maroon px-6 py-2 rounded-full shadow font-bold text-sm uppercase tracking-wider hover:bg-yellow-400">+ Add Member</button></div>}
+                    <div className={`grid grid-cols-1 ${type==='team' ? 'md:grid-cols-3 lg:grid-cols-4' : 'md:grid-cols-2 lg:grid-cols-3'} gap-6`}>
+                        {data.map(p => (
+                            <div key={p.id} className="bg-white p-6 rounded-xl shadow-sm border-t-4 border-rkm-gold text-center hover:shadow-md transition-shadow relative group">
+                                {isEditMode && <button onClick={() => { SoundEngine.click(); onDelete(p.id, type === 'team' ? 'placement_team' : 'placement_officials'); }} className="absolute top-2 right-2 text-slate-300 hover:text-red-600"><Icon name="trash-2" size={16}/></button>}
+                                <div className="w-24 h-24 mx-auto bg-slate-100 rounded-full mb-4 overflow-hidden border-4 border-slate-50 shadow-inner">
+                                    {p.image ? <img src={p.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><Icon name="user" size={40}/></div>}
+                                </div>
+                                <h3 className="font-bold text-lg text-rkm-maroon">{p.name}</h3>
+                                <p className="text-slate-500 font-serif text-sm mb-1">{p.role}</p>
+                                {p.dept &&
