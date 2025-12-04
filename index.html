@@ -4,47 +4,83 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RKMVC Placement Diary</title>
+    
+    <!-- 1. STYLING -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: { rkm: { maroon: '#800000', gold: '#FFC107', cream: '#FFFDD0' } },
-                    fontFamily: { serif: ['"Noto Serif"', 'serif'], sans: ['"Noto Sans"', 'sans-serif'] }
+                    colors: {
+                        rkm: {
+                            maroon: '#800000',
+                            lightMaroon: '#961818',
+                            gold: '#FFC107',
+                            paleGold: '#FFF5D1',
+                            cream: '#FFF8F0', // Warmer background
+                            paper: '#FAFAFA'
+                        }
+                    },
+                    fontFamily: {
+                        serif: ['"Playfair Display"', 'serif'],
+                        sans: ['"Inter"', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'card': '0 4px 20px -2px rgba(128, 0, 0, 0.05)', // Warm shadow
+                    }
                 }
             }
         }
     </script>
+    
+    <!-- 2. LIBRARIES -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Serif:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- 3. FIREBASE COMPAT -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <!-- 4. FONTS -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
     <style>
-        body { font-family: 'Noto Sans', sans-serif; }
-        h1, h2, h3, .brand-font { font-family: 'Noto Serif', serif; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        body { font-family: 'Inter', sans-serif; background-color: #FFF8F0; color: #1a1a1a; }
+        h1, h2, h3, .brand-font { font-family: 'Playfair Display', serif; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #FFF8F0; }
+        ::-webkit-scrollbar-thumb { background: #eab308; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #ca8a04; }
+        
+        .glass {
+            background: rgba(255, 248, 240, 0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 193, 7, 0.15);
+        }
+
         @media print {
             body { background: white; }
             .no-print { display: none !important; }
             .print-break-inside-avoid { break-inside: avoid; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .shadow-card, .shadow-soft, .shadow-lg { box-shadow: none !important; }
         }
-        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .animate-enter { animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; transform: translateY(20px); }
+        @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
-    <div id="root"></div>
-    
-    <!-- FIREBASE COMPAT LIBRARIES (Most Stable for Single File) -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<body class="text-slate-800">
 
+    <div id="root"></div>
+
+    <!-- 5. INITIALIZE FIREBASE GLOBALLY -->
     <script>
-        // ✅ GLOBAL CONFIGURATION
         const firebaseConfig = {
             apiKey: "AIzaSyB3Usm_79MWUgKgNT_4_ibYwJJxV6eS1Ws",
             authDomain: "placement-diary-v2-2818a.firebaseapp.com",
@@ -54,115 +90,174 @@
             appId: "1:834821644942:web:d9613d8c67f4a8d7a55fdf"
         };
 
-        // Initialize immediately
         try {
             firebase.initializeApp(firebaseConfig);
             window.db = firebase.firestore();
             window.auth = firebase.auth();
-            // Silent Auth
             window.auth.signInAnonymously().catch(e => console.error("Auth Error", e));
-        } catch(e) {
-            console.error("Firebase Init Error", e);
+        } catch (e) {
+            console.error("Firebase Init Error:", e);
         }
     </script>
 
+    <!-- 6. APP LOGIC -->
     <script type="text/babel">
+        const { useState, useEffect } = React;
         const APP_COLLECTION_ID = "placement_data_v1";
+        
+        // Only used for print header now
         const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Ramakrishna_Mission_Emblem.svg/1200px-Ramakrishna_Mission_Emblem.svg.png"; 
 
-        // --- SOUND ENGINE ---
-        const SoundEngine = {
+        const QUOTES = [
+            "Arise, awake, and stop not till the goal is reached.",
+            "All power is within you; you can do anything and everything.",
+            "Take up one idea. Make that one idea your life.",
+            "Education is the manifestation of the perfection already in man.",
+            "Strength is Life, Weakness is Death."
+        ];
+
+        const Sound = {
             ctx: null,
             enabled: true,
-            init: () => { if (!SoundEngine.ctx) { const AC = window.AudioContext || window.webkitAudioContext; SoundEngine.ctx = new AC(); } },
+            init: () => { if (!Sound.ctx) { const AC = window.AudioContext || window.webkitAudioContext; Sound.ctx = new AC(); } },
             play: (freq, type) => {
-                if (!SoundEngine.enabled || !SoundEngine.ctx) return;
-                const o = SoundEngine.ctx.createOscillator();
-                const g = SoundEngine.ctx.createGain();
-                o.type = type; o.frequency.value = freq;
-                o.connect(g); g.connect(SoundEngine.ctx.destination);
-                o.start(); g.gain.exponentialRampToValueAtTime(0.00001, SoundEngine.ctx.currentTime + 0.1);
-                o.stop(SoundEngine.ctx.currentTime + 0.1);
+                if (!Sound.enabled || !Sound.ctx) return;
+                try {
+                    const o = Sound.ctx.createOscillator(); const g = Sound.ctx.createGain();
+                    o.type = type; o.frequency.value = freq; o.connect(g); g.connect(Sound.ctx.destination);
+                    o.start(); g.gain.exponentialRampToValueAtTime(0.00001, Sound.ctx.currentTime + 0.1); o.stop(Sound.ctx.currentTime + 0.1);
+                } catch(e){}
             },
-            click: () => { SoundEngine.init(); SoundEngine.play(600, 'sine'); },
-            success: () => { SoundEngine.init(); setTimeout(()=>SoundEngine.play(600,'sine'),0); setTimeout(()=>SoundEngine.play(800,'sine'),100); },
-            error: () => { SoundEngine.init(); SoundEngine.play(150, 'sawtooth'); }
+            click: () => { Sound.init(); Sound.play(600, 'sine'); },
+            success: () => { Sound.init(); setTimeout(()=>Sound.play(500,'sine'),0); setTimeout(()=>Sound.play(800,'sine'),100); },
         };
 
-        // --- HELPERS ---
-        const Icon = ({ name, size = 20, className = "" }) => { React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]); return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block', verticalAlign: 'middle' }}></i>; };
+        const Icon = ({ name, size = 20, className = "" }) => { 
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]); 
+            return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block', verticalAlign: 'middle' }}></i>; 
+        };
         const safeParseInt = (val) => { const num = parseInt(String(val).replace(/\D/g, '')); return isNaN(num) ? 0 : num; };
 
         // --- COMPONENTS ---
-
-        const Navbar = ({ activeTab, setActiveTab, isEditMode, setEditMode }) => (
-            <nav className="sticky top-0 z-50 bg-white shadow-md border-b-4 border-rkm-gold no-print">
+        const Navbar = ({ activeTab, setActiveTab, isEditMode, setEditMode, searchQuery, setSearchQuery }) => (
+            <nav className="sticky top-0 z-50 glass no-print transition-all duration-300">
                 <div className="max-w-7xl mx-auto px-4">
-                    <div className="flex flex-col md:flex-row justify-between items-center h-auto md:h-20 py-2 md:py-0 gap-4">
-                        <div className="text-center md:text-left mb-2 md:mb-0 cursor-pointer" onClick={() => { SoundEngine.click(); window.scrollTo(0,0); }}>
-                            <h1 className="text-rkm-maroon font-bold text-lg md:text-xl uppercase tracking-wide leading-none">Ramakrishna Mission</h1>
-                            <h2 className="text-rkm-gold font-bold text-xl md:text-2xl uppercase leading-none" style={{textShadow: '1px 1px 0 #800000'}}>Vivekananda College</h2>
+                    <div className="flex flex-col md:flex-row justify-between items-center py-4 gap-4">
+                        {/* Branding - No Logo on Left */}
+                        <div className="text-center md:text-left cursor-pointer group" onClick={() => { Sound.click(); window.scrollTo(0,0); }}>
+                            <div className="flex items-center gap-3">
+                                <div>
+                                    <h1 className="text-rkm-maroon font-bold text-lg md:text-xl uppercase tracking-wide leading-none group-hover:text-red-700 transition-colors">Ramakrishna Mission</h1>
+                                    <h2 className="text-slate-700 font-bold text-xl md:text-2xl uppercase leading-none font-serif mt-0.5 text-rkm-gold drop-shadow-sm" style={{ textShadow: '1px 1px 0px rgba(0,0,0,0.1)' }}>Vivekananda College</h2>
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-[280px] md:max-w-none">
+                        
+                        <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+                            {/* SEARCH BAR - Warmer Tone */}
+                            <div className="relative w-full md:w-64 group">
+                                <input 
+                                    type="text" 
+                                    placeholder="Search records..." 
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 rounded-full border border-amber-200 focus:border-rkm-maroon focus:ring-2 focus:ring-rkm-maroon/20 outline-none text-sm bg-white/60 shadow-sm transition-all placeholder-slate-400 text-slate-700"
+                                />
+                                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-amber-700/50 group-hover:text-rkm-maroon transition-colors"><Icon name="search" size={14} /></div>
+                            </div>
+
+                            {/* TABS */}
+                            <div className="flex bg-white/50 p-1.5 rounded-full shadow-sm border border-amber-100 overflow-x-auto max-w-[100%] md:max-w-none no-scrollbar w-full md:w-auto justify-center">
                                 {['stats', 'activities', 'officials', 'team'].map(tab => (
-                                    <button key={tab} onClick={() => { SoundEngine.click(); setActiveTab(tab); }} className={`px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-all uppercase whitespace-nowrap ${activeTab === tab ? 'bg-rkm-maroon text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}>{tab}</button>
+                                    <button key={tab} onClick={() => { Sound.click(); setActiveTab(tab); }} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all uppercase whitespace-nowrap ${activeTab === tab ? 'bg-gradient-to-r from-rkm-maroon to-red-900 text-white shadow-md transform scale-105' : 'text-slate-600 hover:text-rkm-maroon hover:bg-amber-50'}`}>{tab}</button>
                                 ))}
                             </div>
-                            <button onClick={() => { SoundEngine.click(); window.print(); }} className="text-slate-500 hover:text-rkm-maroon cursor-pointer" title="Print"><Icon name="printer" size={20} /></button>
-                            <button onClick={() => { SoundEngine.click(); setEditMode(!isEditMode); }} className={`text-slate-500 hover:text-rkm-maroon cursor-pointer ${isEditMode ? 'text-red-600' : ''}`} title="Admin Mode"><Icon name={isEditMode ? "unlock" : "lock"} size={20} /></button>
+                            
+                            <div className="flex gap-2">
+                                <button onClick={() => { Sound.click(); window.print(); }} className="text-slate-400 hover:text-rkm-maroon p-2 rounded-full hover:bg-amber-50 transition-colors" title="Print"><Icon name="printer" size={18} /></button>
+                                <button onClick={() => { Sound.click(); setEditMode(!isEditMode); }} className={`p-2 rounded-full transition-colors ${isEditMode ? 'text-red-600 bg-red-50 ring-2 ring-red-100' : 'text-slate-400 hover:text-rkm-maroon hover:bg-amber-50'}`} title="Admin Mode"><Icon name={isEditMode ? "unlock" : "lock"} size={18} /></button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </nav>
         );
 
+        const QuoteBanner = () => {
+            const [index, setIndex] = useState(0);
+            useEffect(() => { const t = setInterval(() => setIndex(p => (p+1)%QUOTES.length), 6000); return () => clearInterval(t); }, []);
+            return (
+                <div className="bg-gradient-to-r from-rkm-maroon to-red-900 text-rkm-paleGold py-2 text-center no-print shadow-inner border-b border-amber-500/20">
+                    <div className="max-w-4xl mx-auto px-4 animate-enter" key={index}>
+                        <p className="font-serif italic text-sm md:text-base tracking-wide opacity-95">"{QUOTES[index]}"</p>
+                    </div>
+                </div>
+            );
+        };
+
         const StatsView = ({ data, isEditMode, onDelete, onAdd }) => {
             const totalPlaced = data.reduce((acc, curr) => acc + safeParseInt(curr.selected), 0);
             const totalCompanies = new Set(data.map(s => s.company)).size;
             return (
-                <div className="animate-fade-in">
-                    <div className="bg-rkm-maroon text-white py-12 md:py-16 text-center relative overflow-hidden">
-                        <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(#FFC107 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
+                <div className="animate-enter pb-20">
+                    {/* Print Header */}
+                    <div className="hidden print:block w-full border-b-4 border-double border-red-900 mb-8 pb-4">
+                        <div className="flex items-center justify-between">
+                            <img src={LOGO_URL} alt="Emblem" className="h-24 w-auto" />
+                            <div className="text-center flex-1 px-4">
+                                <h1 className="text-2xl font-bold uppercase font-serif text-red-900">Ramakrishna Mission Vivekananda College</h1>
+                                <p className="text-sm font-bold mt-1">(Autonomous), Mylapore, Chennai - 04</p>
+                                <div className="mt-4 inline-block border-t-2 border-black pt-2 px-8"><h2 className="text-xl font-bold uppercase">Placement Report 2025-26</h2></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Hero */}
+                    <div className="bg-white border-b border-amber-100 pt-12 pb-16 text-center relative overflow-hidden no-print">
+                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rkm-gold via-yellow-400 to-rkm-gold"></div>
+                         <div className="absolute -top-24 -right-24 w-72 h-72 bg-amber-100/40 rounded-full blur-3xl"></div>
+                         <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-red-50/50 rounded-full blur-3xl"></div>
+                         
                         <div className="relative z-10 container mx-auto px-4">
-                            <h2 className="text-3xl md:text-5xl font-bold font-serif mb-2">Placement Overview</h2>
-                            <p className="text-rkm-gold opacity-90 uppercase tracking-widest text-xs md:text-sm mb-10">Academic Year 2025-2026</p>
-                            <div className="flex justify-center gap-6 md:gap-12 max-w-4xl mx-auto">
-                                <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 w-48 md:w-64 border-t-4 border-rkm-gold transform hover:-translate-y-1 transition-transform">
-                                    <div className="text-5xl md:text-6xl font-bold text-white mb-2">{totalPlaced}</div>
-                                    <div className="text-xs md:text-sm text-rkm-gold uppercase font-bold tracking-widest">Offers Received</div>
+                            <span className="inline-block py-1 px-3 rounded-full bg-rkm-paleGold text-rkm-maroon text-[10px] font-bold uppercase tracking-widest mb-4 border border-rkm-gold/30">Official Report</span>
+                            <h2 className="text-4xl md:text-6xl font-bold font-serif mb-2 text-slate-900">Placement Overview</h2>
+                            <p className="text-slate-500 uppercase tracking-widest text-xs md:text-sm mb-12 font-medium">Academic Year 2025-2026</p>
+                            
+                            <div className="flex justify-center gap-6 md:gap-10 flex-wrap">
+                                <div className="bg-white p-6 md:p-8 w-48 md:w-64 rounded-2xl shadow-card border border-amber-50 group hover:-translate-y-2 transition-transform duration-300 relative overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rkm-maroon to-red-600"></div>
+                                    <div className="text-5xl md:text-6xl font-bold text-slate-800 mb-2 group-hover:text-rkm-maroon transition-colors">{totalPlaced}</div>
+                                    <div className="text-xs text-slate-400 uppercase font-bold tracking-widest">Offers Received</div>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 w-48 md:w-64 border-t-4 border-rkm-gold transform hover:-translate-y-1 transition-transform">
-                                    <div className="text-5xl md:text-6xl font-bold text-white mb-2">{totalCompanies}</div>
-                                    <div className="text-xs md:text-sm text-rkm-gold uppercase font-bold tracking-widest">Recruiters</div>
+                                <div className="bg-white p-6 md:p-8 w-48 md:w-64 rounded-2xl shadow-card border border-amber-50 group hover:-translate-y-2 transition-transform duration-300 relative overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rkm-gold to-yellow-500"></div>
+                                    <div className="text-5xl md:text-6xl font-bold text-slate-800 mb-2 group-hover:text-yellow-600 transition-colors">{totalCompanies}</div>
+                                    <div className="text-xs text-slate-400 uppercase font-bold tracking-widest">Recruiters</div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div className="max-w-7xl mx-auto px-4 -mt-8 relative z-20 pb-20">
-                        <div className="bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden">
-                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                                <h3 className="font-bold text-slate-700 flex items-center gap-2 text-lg"><Icon name="table" size={20}/> Detailed Statistics</h3>
-                                {isEditMode && <button onClick={onAdd} className="bg-rkm-maroon text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-red-900 transition shadow-md flex items-center gap-2"><Icon name="plus" size={14}/> Add Record</button>}
+
+                    {/* Table */}
+                    <div className="max-w-7xl mx-auto px-4 -mt-12 relative z-20">
+                        <div className="bg-white rounded-xl shadow-card border border-amber-100/50 overflow-hidden">
+                            <div className="p-5 border-b border-slate-50 flex justify-between items-center bg-white">
+                                <h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg font-serif"><Icon name="bar-chart-2" size={20} className="text-rkm-maroon"/> Detailed Statistics</h3>
+                                {isEditMode && <button onClick={onAdd} className="bg-rkm-maroon text-white px-4 py-2 rounded-lg text-xs font-bold uppercase hover:bg-red-900 transition shadow-lg shadow-red-900/20 flex items-center gap-2"><Icon name="plus" size={14}/> Add Record</button>}
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left whitespace-nowrap">
-                                    <thead className="bg-slate-100 text-slate-600 border-b border-slate-200">
-                                        <tr>
-                                            {['Date', 'Company', 'Mode', 'Apt', 'GD', 'Tech', 'HR', 'Selected'].map(h => <th key={h} className="px-6 py-4 font-bold uppercase text-xs tracking-wider">{h}</th>)}
-                                            {isEditMode && <th></th>}
-                                        </tr>
-                                    </thead>
+                                    <thead className="bg-slate-50 text-slate-500 border-b"><tr>{['Date', 'Company', 'Mode', 'Apt', 'GD', 'Tech', 'HR', 'Selected'].map(h => <th key={h} className="px-6 py-4 font-bold uppercase text-xs tracking-wider">{h}</th>)}{isEditMode && <th></th>}</tr></thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {data.length === 0 && <tr><td colSpan="9" className="p-12 text-center text-slate-400 italic bg-slate-50/30">No records yet.</td></tr>}
+                                        {data.length === 0 && <tr><td colSpan="9" className="p-12 text-center text-slate-400 italic">No records yet.</td></tr>}
                                         {data.map((row) => (
-                                            <tr key={row.id} className="hover:bg-amber-50/40 transition-colors">
+                                            <tr key={row.id} className="hover:bg-amber-50/30 transition-colors group">
                                                 <td className="px-6 py-4 font-mono text-slate-500 text-xs">{new Date(row.date).toLocaleDateString('en-GB')}</td>
-                                                <td className="px-6 py-4 font-bold text-rkm-maroon">{row.company}</td>
-                                                <td className="px-6 py-4"><span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${row.mode==='Virtual'?'bg-purple-50 text-purple-600 border-purple-100':'bg-blue-50 text-blue-600 border-blue-100'}`}>{row.mode}</span></td>
+                                                <td className="px-6 py-4 font-bold text-rkm-maroon group-hover:text-red-700 transition-colors">{row.company}</td>
+                                                <td className="px-6 py-4"><span className="px-2.5 py-0.5 rounded-full bg-white border border-slate-200 text-xs font-medium text-slate-600 shadow-sm">{row.mode}</span></td>
                                                 <td className="px-6 py-4 text-center text-slate-500">{row.aptitude}</td><td className="px-6 py-4 text-center text-slate-500">{row.gd}</td><td className="px-6 py-4 text-center text-slate-500">{row.tech}</td><td className="px-6 py-4 text-center text-slate-500">{row.hr}</td>
-                                                <td className="px-6 py-4 text-center"><span className="bg-green-100 text-green-800 px-3 py-1 rounded-full font-bold text-xs shadow-sm">{row.selected}</span></td>
-                                                {isEditMode && <td className="px-6 py-4 text-right"><button onClick={() => onDelete(row.id, 'placement_stats')} className="text-slate-300 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors"><Icon name="trash-2" size={16}/></button></td>}
+                                                <td className="px-6 py-4 text-center"><span className="bg-green-50 text-green-700 px-3 py-1 rounded-full font-bold text-xs border border-green-100">{row.selected}</span></td>
+                                                {isEditMode && <td className="px-6 py-4 text-right opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => onDelete(row.id, 'placement_stats')} className="text-slate-300 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors"><Icon name="trash-2" size={16}/></button></td>}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -175,42 +270,35 @@
         };
 
         const ActivitiesView = ({ data, isEditMode, onDelete, onAdd }) => {
-            const [filter, setFilter] = React.useState('All');
-            const filteredData = filter === 'All' ? data : data.filter(item => (item.category || 'Recruitment Drive') === filter);
+            const [filter, setFilter] = useState('All');
+            const filteredData = filter === 'All' ? data : data.filter(d => (d.category||'Recruitment Drive') === filter);
             return (
-                <div className="bg-slate-100 min-h-screen pb-20 animate-fade-in">
-                    <div className="bg-white border-b border-slate-200 pt-10 pb-4 mb-8 text-center shadow-sm">
-                        <h2 className="text-3xl md:text-4xl font-serif font-bold text-slate-800 mb-2">Activities Log</h2>
-                        <div className="flex flex-wrap justify-center gap-2 px-4 mt-6">
-                            {['All', 'Recruitment Drive', 'Student Empowerment', 'Event'].map(cat => (
-                                <button key={cat} onClick={() => { SoundEngine.click(); setFilter(cat); }} className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide transition-all border ${filter === cat ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}>{cat}</button>
+                <div className="min-h-screen pb-20 animate-enter">
+                    <div className="bg-white border-b border-amber-100 pt-12 pb-8 mb-8 text-center shadow-sm bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+                        <h2 className="text-4xl font-serif font-bold text-rkm-maroon mb-4">Activities Log</h2>
+                        <div className="flex flex-wrap justify-center gap-2 px-4">
+                            {['All', 'Recruitment Drive', 'Event'].map(cat => (
+                                <button key={cat} onClick={() => { Sound.click(); setFilter(cat); }} className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide transition-all border ${filter === cat ? 'bg-rkm-maroon text-white border-rkm-maroon shadow-lg shadow-red-900/20' : 'bg-white text-slate-500 border-slate-200 hover:border-rkm-gold hover:text-rkm-gold'}`}>{cat}</button>
                             ))}
                         </div>
-                        {isEditMode && <button onClick={() => { SoundEngine.click(); onAdd(); }} className="mt-6 bg-rkm-maroon text-white px-6 py-2 rounded-full shadow hover:bg-red-900 transition font-bold text-sm uppercase tracking-wider flex items-center gap-2 mx-auto"><Icon name="pen-tool" size={14}/> Add Activity</button>}
+                        {isEditMode && <button onClick={onAdd} className="mt-8 text-rkm-maroon border border-rkm-maroon/20 px-5 py-1.5 rounded-full hover:bg-rkm-maroon hover:text-white text-xs font-bold uppercase transition flex items-center gap-2 mx-auto"><Icon name="pen-tool" size={14}/> Add Activity</button>}
                     </div>
-                    <div className="max-w-3xl mx-auto px-4 space-y-10">
-                        {filteredData.length === 0 && <div className="text-center text-slate-400 py-12 italic border-2 border-dashed border-slate-200 rounded-xl">No activities found.</div>}
+                    <div className="max-w-3xl mx-auto px-4 space-y-8">
+                        {filteredData.length === 0 && <div className="text-center text-slate-400 py-20 italic border-2 border-dashed border-slate-200 rounded-2xl">No activities found.</div>}
                         {filteredData.map((item) => (
-                            <article key={item.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden group hover:shadow-lg transition-all duration-300">
-                                {item.image && (
-                                    <div className="w-full h-56 md:h-80 overflow-hidden bg-slate-100 relative">
-                                        <img src={item.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
-                                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-lg text-xs font-bold text-slate-700 shadow-sm flex items-center gap-1"><Icon name="calendar" size={12}/> {new Date(item.date).toLocaleDateString('en-GB')}</div>
-                                    </div>
-                                )}
-                                <div className="p-6 md:p-8">
+                            <article key={item.id} className="bg-white rounded-2xl shadow-card border border-amber-50 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                                {item.image && <div className="w-full h-56 md:h-72 bg-slate-100 relative group"><img src={item.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => e.target.style.display='none'} /><div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg text-xs font-bold text-slate-800 shadow-sm flex items-center gap-1 border border-white"><Icon name="calendar" size={12}/> {new Date(item.date).toLocaleDateString('en-GB')}</div></div>}
+                                <div className="p-8">
                                     <div className="flex items-center justify-between mb-4">
-                                        <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-slate-400">
-                                            {!item.image && <span className="flex items-center gap-1"><Icon name="calendar" size={12}/> {new Date(item.date).toLocaleDateString('en-GB')}</span>}
-                                            <span className={`px-2 py-1 rounded border ${item.category?.includes('Recruit') ? 'bg-blue-50 text-blue-600 border-blue-100' : item.category?.includes('Student') ? 'bg-green-50 text-green-600 border-green-100' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{item.category || 'General'}</span>
+                                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                            {!item.image && <span className="flex items-center gap-1 text-rkm-maroon bg-red-50 px-2 py-1 rounded"><Icon name="calendar" size={12}/> {new Date(item.date).toLocaleDateString('en-GB')}</span>}
+                                            <span className="px-2 py-1 rounded bg-amber-50 text-amber-700 border border-amber-100">{item.category || 'General'}</span>
                                         </div>
-                                        {isEditMode && <button onClick={() => onDelete(item.id, 'placement_diary')} className="text-slate-300 hover:text-red-600 p-1"><Icon name="trash-2" size={18}/></button>}
+                                        {isEditMode && <button onClick={() => onDelete(item.id, 'placement_diary')} className="text-slate-300 hover:text-red-600 p-1 rounded-full hover:bg-red-50 transition"><Icon name="trash-2" size={16}/></button>}
                                     </div>
-                                    <div className="mb-2">
-                                        {item.location && <span className="inline-flex items-center text-xs font-bold text-rkm-gold uppercase tracking-wider mb-2"><Icon name="map-pin" size={12} className="mr-1"/> {item.location}</span>}
-                                        <h3 className="text-2xl font-serif font-bold text-slate-800 leading-tight group-hover:text-rkm-maroon transition-colors">{item.title}</h3>
-                                    </div>
-                                    <div className="prose prose-slate max-w-none border-t border-slate-100 pt-4 mt-4"><p className="text-slate-600 leading-relaxed text-base whitespace-pre-wrap font-light">{item.desc}</p></div>
+                                    <h3 className="text-2xl font-serif font-bold text-slate-800 mb-3 leading-tight">{item.title}</h3>
+                                    {item.location && <div className="text-xs font-bold text-slate-500 mb-4 flex items-center"><Icon name="map-pin" size={12} className="mr-1 text-amber-600"/> {item.location}</div>}
+                                    <div className="prose prose-slate max-w-none text-base text-slate-600 leading-relaxed whitespace-pre-wrap border-t border-slate-100 pt-4">{item.desc}</div>
                                 </div>
                             </article>
                         ))}
@@ -219,26 +307,25 @@
             );
         };
 
-        // --- PEOPLE VIEW (REUSED FOR OFFICIALS AND TEAM) ---
         const PeopleView = ({ data, title, subtitle, isEditMode, onDelete, onAdd, type }) => (
-            <div className="bg-slate-50 min-h-screen pb-20 animate-fade-in">
-                <div className="bg-rkm-maroon text-white py-12 text-center mb-8 shadow-inner">
-                    <h2 className="text-3xl font-serif font-bold mb-2">{title}</h2>
-                    <p className="opacity-80 max-w-xl mx-auto text-sm">{subtitle}</p>
+            <div className="min-h-screen pb-20 animate-enter">
+                <div className="bg-rkm-cream border-b border-rkm-gold/20 py-16 text-center mb-12">
+                    <h2 className="text-4xl font-serif font-bold text-rkm-maroon mb-2">{title}</h2>
+                    <p className="text-slate-500 max-w-xl mx-auto text-sm font-medium tracking-wide uppercase text-rkm-gold">{subtitle}</p>
                 </div>
-                <div className="max-w-5xl mx-auto px-4">
-                    {isEditMode && <div className="text-center mb-8"><button onClick={() => { SoundEngine.click(); onAdd(); }} className="bg-rkm-gold text-rkm-maroon px-6 py-2 rounded-full shadow font-bold text-sm uppercase tracking-wider hover:bg-yellow-400">+ Add Member</button></div>}
-                    <div className={`grid grid-cols-1 ${type==='team' ? 'md:grid-cols-3 lg:grid-cols-4' : 'md:grid-cols-2 lg:grid-cols-3'} gap-6`}>
-                        {data.length === 0 && <div className="col-span-full text-center text-slate-400 py-12 italic">No officials listed yet.</div>}
+                <div className="max-w-6xl mx-auto px-4">
+                    {isEditMode && <div className="text-center mb-12"><button onClick={onAdd} className="bg-rkm-maroon text-white px-6 py-2 rounded-full shadow-lg shadow-red-900/20 font-bold text-sm uppercase hover:bg-red-800 transition transform hover:scale-105">+ Add Member</button></div>}
+                    <div className={`grid gap-8 ${type==='placement_team'?'grid-cols-2 md:grid-cols-3 lg:grid-cols-4':'grid-cols-1 md:grid-cols-3'}`}>
                         {data.map(p => (
-                            <div key={p.id} className="bg-white p-6 rounded-xl shadow-sm border-t-4 border-rkm-gold text-center hover:shadow-md transition-shadow relative group">
-                                {isEditMode && <button onClick={() => { SoundEngine.click(); onDelete(p.id, type === 'team' ? 'placement_team' : 'placement_officials'); }} className="absolute top-2 right-2 text-slate-300 hover:text-red-600"><Icon name="trash-2" size={16}/></button>}
-                                <div className="w-24 h-24 mx-auto bg-slate-100 rounded-full mb-4 overflow-hidden border-4 border-slate-50 shadow-inner">
-                                    {p.image ? <img src={p.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><Icon name="user" size={40}/></div>}
+                            <div key={p.id} className="bg-white p-8 rounded-2xl shadow-card border border-amber-50 text-center relative group hover:-translate-y-2 transition-all duration-300">
+                                {isEditMode && <button onClick={() => onDelete(p.id, type)} className="absolute top-3 right-3 text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Icon name="trash-2" size={16}/></button>}
+                                <div className="mx-auto bg-slate-50 rounded-full mb-5 w-24 h-24 overflow-hidden border-4 border-white shadow-lg flex items-center justify-center relative">
+                                    <div className="absolute inset-0 border-2 border-rkm-gold rounded-full opacity-50"></div>
+                                    {p.image ? <img src={p.image} className="w-full h-full object-cover" /> : <Icon name="user" size={40} className="text-slate-300"/>}
                                 </div>
-                                <h3 className="font-bold text-lg text-rkm-maroon">{p.name}</h3>
-                                <p className="text-slate-500 font-serif text-sm mb-1">{p.role}</p>
-                                {p.dept && <span className="bg-slate-100 text-slate-600 text-[10px] px-2 py-1 rounded uppercase tracking-wider">{p.dept}</span>}
+                                <h3 className="font-bold text-lg text-slate-900 mb-1">{p.name}</h3>
+                                <p className="text-rkm-maroon font-serif text-sm italic mb-2">{p.role}</p>
+                                {p.dept && <span className="bg-rkm-cream text-rkm-maroon text-[10px] px-3 py-1 rounded-full uppercase tracking-wider font-bold inline-block">{p.dept}</span>}
                             </div>
                         ))}
                     </div>
@@ -246,65 +333,61 @@
             </div>
         );
 
+        // --- MODAL & FORMS ---
         const Modal = ({ isOpen, onClose, title, children }) => {
             if (!isOpen) return null;
-            return (<div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] scale-100 transition-transform"><div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-lg text-slate-800 font-serif">{title}</h3><button onClick={() => { SoundEngine.click(); onClose(); }}><Icon name="x" size={20} className="text-slate-400 hover:text-red-600 transition-colors"/></button></div><div className="p-6 overflow-y-auto">{children}</div></div></div>);
+            return (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] scale-100 transition-transform">
+                        <div className="px-6 py-4 border-b flex justify-between items-center bg-slate-50">
+                            <h3 className="font-bold text-lg text-slate-800 font-serif">{title}</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-red-600"><Icon name="x" size={20}/></button>
+                        </div>
+                        <div className="p-6 overflow-y-auto">{children}</div>
+                    </div>
+                </div>
+            );
         };
 
         const AddStatForm = ({ onClose }) => {
-            const [f, setF] = React.useState({ date: "", company: "", mode: "Physical", aptitude: "", gd: "", tech: "", hr: "", selected: "" });
-            const sub = async (e) => { 
-                e.preventDefault(); 
-                try { await window.db.collection('artifacts').doc(APP_COLLECTION_ID).collection('public').doc('data').collection('placement_stats').add({ ...f, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); SoundEngine.success(); onClose(); }
-                catch(e) { alert("Save Error: " + e.message); }
-            };
-            return (<form onSubmit={sub} className="space-y-4"><div className="grid grid-cols-2 gap-3"><input type="date" required className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,date:e.target.value})} /><select className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,mode:e.target.value})}><option>Physical</option><option>Virtual</option><option>Mixed</option></select></div><input required placeholder="Company Name" className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold font-bold" onChange={e=>setF({...f,company:e.target.value})} /><div className="grid grid-cols-4 gap-2 text-center">{['aptitude', 'gd', 'tech', 'hr'].map(k => <input key={k} placeholder={k.toUpperCase()} className="p-2 border rounded-lg text-center outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,[k]:e.target.value})} />)}</div><input placeholder="Selected (Offers)" className="w-full p-3 border border-green-200 bg-green-50 rounded-lg font-bold text-green-800 outline-none focus:ring-2 focus:ring-green-400" onChange={e=>setF({...f,selected:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Save Record</button></form>);
+            const [f, setF] = useState({});
+            const sub = async (e) => { e.preventDefault(); try { await window.db.collection('artifacts').doc(APP_COLLECTION_ID).collection('public').doc('data').collection('placement_stats').add({ ...f, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); Sound.success(); onClose(); } catch(e){ alert("Save Error: " + e.message); } };
+            return (<form onSubmit={sub} className="space-y-3"><div className="grid grid-cols-2 gap-2"><input type="date" required className="border p-2 rounded w-full focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,date:e.target.value})} /><select className="border p-2 rounded w-full focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,mode:e.target.value})}><option>Physical</option><option>Virtual</option><option>Mixed</option></select></div><input placeholder="Company" required className="border p-2 rounded w-full font-bold focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,company:e.target.value})} /><div className="grid grid-cols-4 gap-2">{['aptitude','gd','tech','hr'].map(k=><input key={k} placeholder={k.toUpperCase()} className="border p-2 rounded text-center focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,[k]:e.target.value})} />)}</div><input placeholder="Selected" className="border p-2 rounded w-full bg-green-50 focus:ring-2 focus:ring-green-400 outline-none" onChange={e=>setF({...f,selected:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-2 rounded font-bold">Save</button></form>);
         };
-
         const AddDiaryForm = ({ onClose }) => {
-            const [f, setF] = React.useState({ category: "Recruitment Drive" });
-            const sub = async (e) => { 
-                e.preventDefault(); 
-                try { const t = f.tags ? f.tags.split(',') : []; await window.db.collection('artifacts').doc(APP_COLLECTION_ID).collection('public').doc('data').collection('placement_diary').add({ ...f, tags: t, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); SoundEngine.success(); onClose(); }
-                catch(e) { alert("Save Error: " + e.message); }
-            };
-            return (<form onSubmit={sub} className="space-y-4"><div className="grid grid-cols-2 gap-3"><input type="date" required className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,date:e.target.value})} /><select className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,category:e.target.value})}><option>Recruitment Drive</option><option>Student Empowerment</option><option>Event</option></select></div><input placeholder="Location" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,location:e.target.value})} /><input required placeholder="Title" className="w-full p-3 border rounded-lg font-bold text-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,title:e.target.value})} /><textarea required placeholder="Description..." className="w-full p-3 border rounded-lg h-32 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,desc:e.target.value})}></textarea><input placeholder="Image URL (Paste link)" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold text-sm" onChange={e=>setF({...f,image:e.target.value})} /><input placeholder="Tags (e.g. Workshop, Talk)" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,tags:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Publish Activity</button></form>);
+            const [f, setF] = useState({ category: "Recruitment Drive" });
+            const sub = async (e) => { e.preventDefault(); try { const t = f.tags ? f.tags.split(',') : []; await window.db.collection('artifacts').doc(APP_COLLECTION_ID).collection('public').doc('data').collection('placement_diary').add({ ...f, tags: t, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); Sound.success(); onClose(); } catch(e){ alert("Save Error: " + e.message); } };
+            return (<form onSubmit={sub} className="space-y-3"><div className="grid grid-cols-2 gap-2"><input type="date" required className="border p-2 rounded w-full focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,date:e.target.value})} /><select className="border p-2 rounded w-full focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,category:e.target.value})}><option>Recruitment Drive</option><option>Event</option></select></div><input placeholder="Title" required className="border p-2 rounded w-full font-bold focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,title:e.target.value})} /><textarea placeholder="Description..." className="border p-2 rounded w-full h-24 focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,desc:e.target.value})}></textarea><input placeholder="Location" className="border p-2 rounded w-full focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,location:e.target.value})} /><input placeholder="Image URL" className="border p-2 rounded w-full focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,image:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-2 rounded font-bold">Publish</button></form>);
         };
-
         const AddPersonForm = ({ onClose, type }) => {
-            const [f, setF] = React.useState({ name: "", role: "", dept: "", image: "" });
-            const sub = async (e) => { 
-                e.preventDefault(); 
-                try { await window.db.collection('artifacts').doc(APP_COLLECTION_ID).collection('public').doc('data').collection(type).add({ ...f, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); SoundEngine.success(); onClose(); }
-                catch(e) { alert("Save Error: " + e.message); }
-            };
-            return (<form onSubmit={sub} className="space-y-4"><input required placeholder="Name" className="w-full p-3 border rounded-lg font-bold outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,name:e.target.value})} /><input required placeholder="Role" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,role:e.target.value})} /><input placeholder="Dept" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,dept:e.target.value})} /><input placeholder="Photo URL" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,image:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Add</button></form>);
+            const [f, setF] = useState({});
+            const sub = async (e) => { e.preventDefault(); try { await window.db.collection('artifacts').doc(APP_COLLECTION_ID).collection('public').doc('data').collection(type).add({ ...f, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); Sound.success(); onClose(); } catch(e){ alert("Save Error: " + e.message); } };
+            return (<form onSubmit={sub} className="space-y-3"><input required placeholder="Name" className="border p-2 rounded w-full font-bold focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,name:e.target.value})} /><input required placeholder="Role" className="border p-2 rounded w-full focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,role:e.target.value})} /><input placeholder="Dept" className="border p-2 rounded w-full focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,dept:e.target.value})} /><input placeholder="Image URL" className="border p-2 rounded w-full focus:ring-2 focus:ring-rkm-gold outline-none" onChange={e=>setF({...f,image:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-2 rounded font-bold">Add</button></form>);
         };
 
         // --- MAIN APP ---
         const App = () => {
-            const [user, setUser] = React.useState(null);
-            const [data, setData] = React.useState({ stats: [], diary: [], officials: [], team: [] });
-            const [activeTab, setActiveTab] = React.useState('stats');
-            const [isEdit, setIsEdit] = React.useState(false);
-            const [modal, setModal] = React.useState(null);
-            const [soundOn, setSoundOn] = React.useState(true);
-            const [status, setStatus] = React.useState("Connecting...");
+            const [user, setUser] = useState(null);
+            const [data, setData] = useState({ stats: [], diary: [], officials: [], team: [] });
+            const [activeTab, setActiveTab] = useState('stats');
+            const [isEdit, setIsEdit] = useState(false);
+            const [modal, setModal] = useState(null);
+            const [soundOn, setSoundOn] = useState(true);
+            const [searchQuery, setSearchQuery] = useState("");
+            const [status, setStatus] = useState("Connecting...");
 
-            React.useEffect(() => { SoundEngine.enabled = soundOn; }, [soundOn]);
+            useEffect(() => { Sound.enabled = soundOn; }, [soundOn]);
 
-            React.useEffect(() => {
-                // Listen for Auth State
+            useEffect(() => {
                 window.auth.onAuthStateChanged(u => {
                     setUser(u);
-                    if(u) {
+                    if (u) {
                         setStatus("Online");
-                        // Listen for Data
                         const load = (col, key) => {
                             window.db.collection('artifacts').doc(APP_COLLECTION_ID).collection('public').doc('data').collection(col)
                             .onSnapshot(snap => {
-                                const list = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                                if (key === 'stats' || key === 'diary') list.sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
+                                const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                                if(key==='stats'||key==='diary') list.sort((a,b) => new Date(b.date||0)-new Date(a.date||0));
                                 setData(prev => ({ ...prev, [key]: list }));
                             }, err => console.error("Data Error", err));
                         };
@@ -319,30 +402,42 @@
             }, []);
 
             const deleteRec = async (id, type) => {
-                SoundEngine.click();
+                Sound.click();
                 if (confirm("Delete permanently?")) {
-                    await window.db.collection('artifacts').doc(APP_COLLECTION_ID).collection('public').doc('data').collection(type).doc(id).delete();
-                    SoundEngine.click();
+                    try {
+                        await window.db.collection('artifacts').doc(APP_COLLECTION_ID).collection('public').doc('data').collection(type).doc(id).delete();
+                        Sound.click();
+                    } catch (e) {
+                        alert("Delete Failed: " + e.message + "\nCheck Database Rules");
+                    }
                 }
+            };
+
+            const getFilteredData = (list, keys) => {
+                if (!searchQuery) return list;
+                const q = searchQuery.toLowerCase();
+                return list.filter(item => keys.some(k => item[k] && item[k].toString().toLowerCase().includes(q)));
             };
 
             return (
                 <div className="min-h-screen flex flex-col">
-                    <Navbar activeTab={activeTab} setActiveTab={setActiveTab} isEditMode={isEdit} setEditMode={setIsEdit} />
+                    <Navbar activeTab={activeTab} setActiveTab={setActiveTab} isEditMode={isEdit} setEditMode={setIsEdit} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+                    <QuoteBanner />
                     <main className="flex-grow">
-                        {activeTab === 'stats' && <StatsView data={data.stats} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => { SoundEngine.click(); setModal('stat'); }} />}
-                        {activeTab === 'activities' && <ActivitiesView data={data.diary} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => { SoundEngine.click(); setModal('diary'); }} />}
-                        {activeTab === 'officials' && <PeopleView data={data.officials} title="Placement Officials & Faculty" subtitle="Honouring our pillars" isEditMode={isEdit} onDelete={deleteRec} onAdd={() => { SoundEngine.click(); setModal('official'); }} type="placement_officials" />}
-                        {activeTab === 'team' && <PeopleView data={data.team} title="Student Coordinators" subtitle="The driving force" isEditMode={isEdit} onDelete={deleteRec} onAdd={() => { SoundEngine.click(); setModal('team'); }} type="placement_team" />}
+                        {activeTab === 'stats' && <StatsView data={getFilteredData(data.stats, ['company','mode'])} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => { Sound.click(); setModal('stat'); }} />}
+                        {activeTab === 'activities' && <ActivitiesView data={getFilteredData(data.diary, ['title','desc','category'])} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => { Sound.click(); setModal('diary'); }} />}
+                        {activeTab === 'officials' && <PeopleView data={getFilteredData(data.officials, ['name','role'])} title="Placement Officials & Faculty" subtitle="Honouring our pillars" isEditMode={isEdit} onDelete={deleteRec} onAdd={() => { Sound.click(); setModal('official'); }} type="placement_officials" />}
+                        {activeTab === 'team' && <PeopleView data={getFilteredData(data.team, ['name','dept'])} title="Student Team" subtitle="The driving force" isEditMode={isEdit} onDelete={deleteRec} onAdd={() => { Sound.click(); setModal('team'); }} type="placement_team" />}
                     </main>
-                    <footer className="bg-slate-900 text-white py-6 text-center no-print mt-auto flex flex-col items-center border-t-4 border-rkm-gold">
-                        <p className="opacity-80 text-sm">© 2025 Career Guidance Bureau | RKMVC</p>
-                        <div className="flex gap-4 mt-2 items-center">
-                            <div className={`text-[10px] ${user ? "text-green-400" : "text-red-400"}`}>Status: {status}</div>
-                            <button onClick={() => setSoundOn(!soundOn)} className={`text-xs border border-white/20 px-2 py-1 rounded hover:bg-white/10 ${soundOn ? 'text-rkm-gold' : 'text-white/50'}`}>Sound: {soundOn ? 'ON' : 'OFF'}</button>
+                    <footer className="bg-slate-900 text-white py-8 text-center mt-auto text-sm border-t-4 border-rkm-gold no-print">
+                        <p className="mb-2 opacity-80">© 2025 Career Guidance Bureau | RKMVC</p>
+                        <div className="flex justify-center items-center gap-4 text-[10px] opacity-50">
+                             <span>DB: {user ? "Connected" : "Connecting..."}</span>
+                             <span>•</span>
+                             <button onClick={()=>setSoundOn(!soundOn)} className="hover:text-rkm-gold transition-colors">Sound: {soundOn?'ON':'OFF'}</button>
                         </div>
                     </footer>
-                    <Modal isOpen={!!modal} onClose={() => { SoundEngine.click(); setModal(null); }} title={modal}>
+                    <Modal isOpen={!!modal} onClose={() => { Sound.click(); setModal(null); }} title={modal}>
                         {modal === 'stat' && <AddStatForm onClose={() => setModal(null)} />}
                         {modal === 'diary' && <AddDiaryForm onClose={() => setModal(null)} />}
                         {modal === 'official' && <AddPersonForm onClose={() => setModal(null)} type="placement_officials" />}
