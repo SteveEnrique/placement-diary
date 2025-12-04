@@ -31,6 +31,8 @@
             .print-break-inside-avoid { break-inside: avoid; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -40,7 +42,7 @@
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
-        // ✅ CONFIGURATION (Updated with your NEW keys for placement-diary-v2)
+        // ✅ CONFIGURATION (Using your new keys)
         const firebaseConfig = {
             apiKey: "AIzaSyB3Usm_79MWUgKgNT_4_ibYwJJxV6eS1Ws",
             authDomain: "placement-diary-v2-2818a.firebaseapp.com",
@@ -50,12 +52,13 @@
             appId: "1:834821644942:web:d9613d8c67f4a8d7a55fdf"
         };
 
-        // Initialize Firebase Globally
+        // --- INITIALIZE FIREBASE GLOBALLY ---
+        // We initialize this once outside the component to avoid re-init errors.
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
         
-        const APP_COLLECTION_ID = "placement_data_v1"; // Clean collection for new project
+        const APP_COLLECTION_ID = "placement_data_v1";
         const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Ramakrishna_Mission_Emblem.svg/1200px-Ramakrishna_Mission_Emblem.svg.png"; 
 
         // --- SOUND ENGINE ---
@@ -73,14 +76,16 @@
                 o.stop(SoundEngine.ctx.currentTime + 0.1);
             },
             click: () => { SoundEngine.init(); SoundEngine.play(600, 'sine'); },
-            success: () => { SoundEngine.init(); setTimeout(()=>SoundEngine.play(600,'sine'),0); setTimeout(()=>SoundEngine.play(800,'sine'),100); }
+            success: () => { SoundEngine.init(); setTimeout(()=>SoundEngine.play(600,'sine'),0); setTimeout(()=>SoundEngine.play(800,'sine'),100); },
+            error: () => { SoundEngine.init(); SoundEngine.play(150, 'sawtooth'); }
         };
 
-        // --- HELPERS ---
+        // --- HELPERS & ICONS ---
         const Icon = ({ name, size = 20, className = "" }) => { React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]); return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block', verticalAlign: 'middle' }}></i>; };
         const safeParseInt = (val) => { const num = parseInt(String(val).replace(/\D/g, '')); return isNaN(num) ? 0 : num; };
 
         // --- COMPONENTS ---
+
         const Navbar = ({ activeTab, setActiveTab, isEditMode, setEditMode }) => (
             <nav className="sticky top-0 z-50 bg-white shadow-md border-b-4 border-rkm-gold no-print">
                 <div className="max-w-7xl mx-auto px-4">
@@ -89,12 +94,14 @@
                             <h1 className="text-rkm-maroon font-bold text-lg md:text-xl uppercase tracking-wide leading-none">Ramakrishna Mission</h1>
                             <h2 className="text-rkm-gold font-bold text-xl md:text-2xl uppercase leading-none" style={{textShadow: '1px 1px 0 #800000'}}>Vivekananda College</h2>
                         </div>
+                        
                         <div className="flex items-center gap-4">
                             <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-[280px] md:max-w-none">
                                 {['stats', 'activities', 'officials', 'team'].map(tab => (
                                     <button key={tab} onClick={() => { SoundEngine.click(); setActiveTab(tab); }} className={`px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-all uppercase whitespace-nowrap ${activeTab === tab ? 'bg-rkm-maroon text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}>{tab}</button>
                                 ))}
                             </div>
+                            <div className="hidden md:block h-8 w-px bg-slate-200 mx-1"></div>
                             <button onClick={() => { SoundEngine.click(); window.print(); }} className="text-slate-500 hover:text-rkm-maroon cursor-pointer" title="Print"><Icon name="printer" size={20} /></button>
                             <button onClick={() => { SoundEngine.click(); setEditMode(!isEditMode); }} className={`text-slate-500 hover:text-rkm-maroon cursor-pointer ${isEditMode ? 'text-red-600' : ''}`} title="Admin Mode"><Icon name={isEditMode ? "unlock" : "lock"} size={20} /></button>
                         </div>
@@ -236,7 +243,7 @@
         };
 
         const AddStatForm = ({ onClose, db }) => {
-            const [f, setF] = React.useState({});
+            const [f, setF] = React.useState({ date: "", company: "", mode: "Physical", aptitude: "", gd: "", tech: "", hr: "", selected: "" });
             const sub = async (e) => { 
                 e.preventDefault(); 
                 try { await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'), { ...f, createdAt: serverTimestamp() }); SoundEngine.success(); onClose(); }
@@ -252,7 +259,7 @@
                 try { const t = f.tags ? f.tags.split(',') : []; await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'), { ...f, tags: t, createdAt: serverTimestamp() }); SoundEngine.success(); onClose(); }
                 catch(e) { alert("Error: " + e.message); }
             };
-            return (<form onSubmit={sub} className="space-y-4"><div className="grid grid-cols-2 gap-3"><input type="date" required className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,date:e.target.value})} /><select className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,category:e.target.value})}><option>Recruitment Drive</option><option>Student Empowerment</option><option>Event</option></select></div><input placeholder="Location" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,location:e.target.value})} /><input required placeholder="Activity Title" className="w-full p-3 border rounded-lg font-bold text-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,title:e.target.value})} /><textarea required placeholder="Write details here..." className="w-full p-3 border rounded-lg h-32 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,desc:e.target.value})}></textarea><input placeholder="Image URL (Paste link)" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold text-sm" onChange={e=>setF({...f,image:e.target.value})} /><input placeholder="Tags (e.g. Workshop, Talk)" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,tags:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Publish Activity</button></form>);
+            return (<form onSubmit={sub} className="space-y-4"><div className="grid grid-cols-2 gap-3"><input type="date" required className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,date:e.target.value})} /><select className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,category:e.target.value})}><option>Recruitment Drive</option><option>Student Empowerment</option><option>Event</option></select></div><input placeholder="Location" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,location:e.target.value})} /><input required placeholder="Title" className="w-full p-3 border rounded-lg font-bold text-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,title:e.target.value})} /><textarea required placeholder="Description..." className="w-full p-3 border rounded-lg h-32 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,desc:e.target.value})}></textarea><input placeholder="Image URL (Paste link)" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold text-sm" onChange={e=>setF({...f,image:e.target.value})} /><input placeholder="Tags (e.g. Workshop, Talk)" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,tags:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Publish Activity</button></form>);
         };
 
         const AddPersonForm = ({ onClose, db, type }) => {
@@ -262,7 +269,7 @@
                 try { await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type), { ...f, createdAt: serverTimestamp() }); SoundEngine.success(); onClose(); }
                 catch(e) { alert("Error: " + e.message); }
             };
-            return (<form onSubmit={sub} className="space-y-4"><input required placeholder="Name" className="w-full p-3 border rounded-lg font-bold outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,name:e.target.value})} /><input required placeholder="Role" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,role:e.target.value})} /><input placeholder="Dept" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,dept:e.target.value})} /><input placeholder="Photo URL" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,image:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Add Person</button></form>);
+            return (<form onSubmit={sub} className="space-y-4"><input required placeholder="Name" className="w-full p-3 border rounded-lg font-bold outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,name:e.target.value})} /><input required placeholder="Role/Designation" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,role:e.target.value})} /><input placeholder="Department (Optional)" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,dept:e.target.value})} /><input placeholder="Photo URL (Optional)" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,image:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Add</button></form>);
         };
 
         // --- MAIN APP ---
