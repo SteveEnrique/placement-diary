@@ -10,7 +10,7 @@
             theme: {
                 extend: {
                     colors: { rkm: { maroon: '#800000', gold: '#FFC107', cream: '#FFFDD0' } },
-                    fontFamily: { serif: ['"Noto Serif"', 'serif'], sans: ['"Noto Sans"', 'sans-serif'] }
+                    fontFamily: { serif: ['Times New Roman', 'serif'], sans: ['Arial', 'sans-serif'] }
                 }
             }
         }
@@ -19,62 +19,30 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Serif:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Noto Sans', sans-serif; }
-        h1, h2, h3, .brand-font { font-family: 'Noto Serif', serif; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        @media print {
-            body { background: white; }
-            .no-print { display: none !important; }
-            .print-break-inside-avoid { break-inside: avoid; }
-            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        }
-        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        body { font-family: Arial, sans-serif; }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @media print { .no-print { display: none !important; } }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
+<body class="bg-slate-100 text-slate-900">
     <div id="root"></div>
     <script type="text/babel" data-type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
-        // ✅ CONFIGURATION (Typo-Corrected Version)
-        const HARDCODED_CONFIG = {
-            apiKey: "AIzaSyAIIlLfjh265a8cDtUmDaukEst2s12GqvME", // Corrected 'a8c'
-            authDomain: "rkmvc-placement-2025-2026.firebaseapp.com",
-            projectId: "rkmvc-placement-2025-2026",
-            storageBucket: "rkmvc-placement-2025-2026.firebasestorage.app",
-            messagingSenderId: "886169557208",
-            appId: "1:886169557208:web:2e69a76784a587a9e79fac", // Corrected 'fac'
-            measurementId: "G-3V10HBH51Y" // Corrected '51Y'
-        };
+        // --- CONFIGURATION ---
+        // Set to null to force you to paste the NEW keys
+        const HARDCODED_CONFIG = null; 
         const APP_COLLECTION_ID = "rkmvc-placement-diary-live-v2";
+        const STORAGE_KEY = "firebase_config_final_v20"; // Version 20 to clear all old caches
+
+        // --- ASSETS ---
         const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Ramakrishna_Mission_Emblem.svg/1200px-Ramakrishna_Mission_Emblem.svg.png"; 
 
-        // --- SOUND ENGINE (Restored) ---
-        const SoundEngine = {
-            ctx: null,
-            enabled: true,
-            init: () => { if (!SoundEngine.ctx) { const AC = window.AudioContext || window.webkitAudioContext; SoundEngine.ctx = new AC(); } },
-            play: (freq, type) => {
-                if (!SoundEngine.enabled || !SoundEngine.ctx) return;
-                const o = SoundEngine.ctx.createOscillator();
-                const g = SoundEngine.ctx.createGain();
-                o.type = type; o.frequency.value = freq;
-                o.connect(g); g.connect(SoundEngine.ctx.destination);
-                o.start(); g.gain.exponentialRampToValueAtTime(0.00001, SoundEngine.ctx.currentTime + 0.1);
-                o.stop(SoundEngine.ctx.currentTime + 0.1);
-            },
-            click: () => { SoundEngine.init(); SoundEngine.play(600, 'sine'); },
-            success: () => { SoundEngine.init(); setTimeout(()=>SoundEngine.play(600,'sine'),0); setTimeout(()=>SoundEngine.play(800,'sine'),100); },
-            error: () => { SoundEngine.init(); SoundEngine.play(150, 'sawtooth'); }
-        };
-
-        // --- HELPERS & ICONS ---
+        // --- HELPERS ---
         const Icon = ({ name, size = 20, className = "" }) => { React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]); return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block', verticalAlign: 'middle' }}></i>; };
         const safeParseInt = (val) => { const num = parseInt(String(val).replace(/\D/g, '')); return isNaN(num) ? 0 : num; };
 
@@ -83,48 +51,79 @@
         const Navbar = ({ activeTab, setActiveTab, isEditMode, setEditMode }) => (
             <nav className="sticky top-0 z-50 bg-white shadow-md border-b-4 border-rkm-gold no-print">
                 <div className="max-w-7xl mx-auto px-4">
-                    <div className="flex flex-col md:flex-row justify-between items-center h-auto md:h-20 py-2 md:py-0">
-                        <div className="text-center md:text-left mb-2 md:mb-0 cursor-pointer" onClick={() => { SoundEngine.click(); window.scrollTo(0,0); }}>
+                    <div className="flex flex-col md:flex-row justify-between items-center h-auto md:h-20 py-2 md:py-0 gap-4">
+                        <div className="text-center md:text-left mb-2 md:mb-0 cursor-pointer" onClick={() => window.scrollTo(0,0)}>
                             <h1 className="text-rkm-maroon font-bold text-lg md:text-xl uppercase tracking-wide leading-none">Ramakrishna Mission</h1>
                             <h2 className="text-rkm-gold font-bold text-xl md:text-2xl uppercase leading-none" style={{textShadow: '1px 1px 0 #800000'}}>Vivekananda College</h2>
                         </div>
-                        
                         <div className="flex items-center gap-4">
                             <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-[280px] md:max-w-none">
                                 {['stats', 'activities', 'officials', 'team'].map(tab => (
-                                    <button key={tab} onClick={() => { SoundEngine.click(); setActiveTab(tab); }} className={`px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-all uppercase whitespace-nowrap ${activeTab === tab ? 'bg-rkm-maroon text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}>{tab}</button>
+                                    <button key={tab} onClick={() => setActiveTab(tab)} className={`px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-all uppercase whitespace-nowrap ${activeTab === tab ? 'bg-rkm-maroon text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}>{tab}</button>
                                 ))}
                             </div>
-                            <div className="hidden md:block h-8 w-px bg-slate-200 mx-1"></div>
-                            <button onClick={() => { SoundEngine.click(); window.print(); }} className="text-slate-500 hover:text-rkm-maroon cursor-pointer" title="Print"><Icon name="printer" size={20} /></button>
-                            <button onClick={() => { SoundEngine.click(); setEditMode(!isEditMode); }} className={`text-slate-500 hover:text-rkm-maroon cursor-pointer ${isEditMode ? 'text-red-600' : ''}`} title="Admin Mode"><Icon name={isEditMode ? "unlock" : "lock"} size={20} /></button>
+                            <button onClick={() => window.print()} className="text-slate-500 hover:text-rkm-maroon cursor-pointer" title="Print"><Icon name="printer" size={20} /></button>
+                            <button onClick={() => setEditMode(!isEditMode)} className={`text-slate-500 hover:text-rkm-maroon cursor-pointer ${isEditMode ? 'text-red-600' : ''}`} title="Admin Mode"><Icon name={isEditMode ? "unlock" : "lock"} size={20} /></button>
                         </div>
                     </div>
                 </div>
             </nav>
         );
 
-        // --- STATISTICS VIEW ---
+        const FirebaseSetup = ({ onSave, errorMsg }) => {
+            const [input, setInput] = React.useState('');
+            const [localError, setLocalError] = React.useState('');
+            const handleSave = () => {
+                try {
+                    let config = null;
+                    try { config = JSON.parse(input); } catch(e) {
+                        const apiKey = input.match(/apiKey:\s*["']([^"']+)["']/)?.[1];
+                        const projectId = input.match(/projectId:\s*["']([^"']+)["']/)?.[1];
+                        if (apiKey && projectId) {
+                            config = {
+                                apiKey, projectId,
+                                authDomain: input.match(/authDomain:\s*["']([^"']+)["']/)?.[1],
+                                storageBucket: input.match(/storageBucket:\s*["']([^"']+)["']/)?.[1],
+                                messagingSenderId: input.match(/messagingSenderId:\s*["']([^"']+)["']/)?.[1],
+                                appId: input.match(/appId:\s*["']([^"']+)["']/)?.[1]
+                            };
+                        }
+                    }
+                    if (!config || !config.apiKey) throw new Error("Invalid configuration. Please copy the full 'const firebaseConfig' block from Firebase Console.");
+                    onSave(config);
+                } catch (e) { setLocalError(e.message); }
+            };
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+                    <div className="bg-white p-8 rounded-xl shadow-xl max-w-lg w-full border-t-4 border-rkm-maroon">
+                        <h2 className="text-2xl font-bold text-rkm-maroon font-serif mb-4">Connect Database</h2>
+                        {errorMsg && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded mb-4 text-sm flex items-center gap-2"><Icon name="alert-triangle" size={16}/> {errorMsg}</div>}
+                        <p className="text-sm text-slate-600 mb-4">Go to Firebase Console &gt; Project Settings. Copy the <strong>firebaseConfig</strong> block and paste it below:</p>
+                        <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder={`const firebaseConfig = {\n  apiKey: "...",\n  ...\n};`} className="w-full h-48 p-3 text-xs font-mono border border-slate-300 rounded-lg mb-4 bg-slate-50"></textarea>
+                        {localError && <p className="text-red-600 text-xs mb-4 font-bold">{localError}</p>}
+                        <button onClick={handleSave} className="w-full bg-rkm-maroon hover:bg-red-900 text-white font-bold py-3 rounded-lg">Save & Connect</button>
+                    </div>
+                </div>
+            );
+        };
+
         const StatsView = ({ data, isEditMode, onDelete, onAdd, loading }) => {
             if (loading) return <div className="text-center py-20 text-slate-500">Loading Statistics...</div>;
             const totalPlaced = data.reduce((acc, curr) => acc + safeParseInt(curr.selected), 0);
             const totalCompanies = new Set(data.map(s => s.company)).size;
-
             return (
                 <div className="animate-fade-in">
                     <div className="bg-rkm-maroon text-white py-12 md:py-16 text-center relative overflow-hidden">
-                        <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(#FFC107 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
                         <div className="relative z-10 container mx-auto px-4">
                             <h2 className="text-3xl md:text-5xl font-bold font-serif mb-2">Placement Overview</h2>
-                            <p className="text-rkm-gold opacity-90 uppercase tracking-widest text-xs md:text-sm mb-10">Academic Year 2025-2026</p>
-                            <div className="flex justify-center gap-6 md:gap-12 max-w-4xl mx-auto">
-                                <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 w-48 md:w-64 border-t-4 border-rkm-gold transform hover:-translate-y-1 transition-transform">
-                                    <div className="text-5xl md:text-6xl font-bold text-white mb-2">{totalPlaced}</div>
-                                    <div className="text-xs md:text-sm text-rkm-gold uppercase font-bold tracking-widest">Offers Received</div>
+                            <div className="flex justify-center gap-6 md:gap-12 mt-8">
+                                <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 w-40 border-t-4 border-rkm-gold">
+                                    <div className="text-4xl font-bold text-white">{totalPlaced}</div>
+                                    <div className="text-xs text-rkm-gold uppercase font-bold tracking-widest">Offers</div>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 w-48 md:w-64 border-t-4 border-rkm-gold transform hover:-translate-y-1 transition-transform">
-                                    <div className="text-5xl md:text-6xl font-bold text-white mb-2">{totalCompanies}</div>
-                                    <div className="text-xs md:text-sm text-rkm-gold uppercase font-bold tracking-widest">Recruiters</div>
+                                <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 w-40 border-t-4 border-rkm-gold">
+                                    <div className="text-4xl font-bold text-white">{totalCompanies}</div>
+                                    <div className="text-xs text-rkm-gold uppercase font-bold tracking-widest">Recruiters</div>
                                 </div>
                             </div>
                         </div>
@@ -133,7 +132,7 @@
                         <div className="bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden">
                             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                                 <h3 className="font-bold text-slate-700 flex items-center gap-2 text-lg"><Icon name="table" size={20}/> Detailed Statistics</h3>
-                                {isEditMode && <button onClick={() => { SoundEngine.click(); onAdd(); }} className="bg-rkm-maroon text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-red-900 transition shadow-md flex items-center gap-2"><Icon name="plus" size={14}/> Add Record</button>}
+                                {isEditMode && <button onClick={onAdd} className="bg-rkm-maroon text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-red-900 transition shadow-md flex items-center gap-2"><Icon name="plus" size={14}/> Add Record</button>}
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left whitespace-nowrap">
@@ -152,7 +151,7 @@
                                                 <td className="px-6 py-4"><span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${row.mode==='Virtual'?'bg-purple-50 text-purple-600 border-purple-100':'bg-blue-50 text-blue-600 border-blue-100'}`}>{row.mode}</span></td>
                                                 <td className="px-6 py-4 text-center text-slate-500">{row.aptitude}</td><td className="px-6 py-4 text-center text-slate-500">{row.gd}</td><td className="px-6 py-4 text-center text-slate-500">{row.tech}</td><td className="px-6 py-4 text-center text-slate-500">{row.hr}</td>
                                                 <td className="px-6 py-4 text-center"><span className="bg-green-100 text-green-800 px-3 py-1 rounded-full font-bold text-xs shadow-sm">{row.selected}</span></td>
-                                                {isEditMode && <td className="px-6 py-4 text-right"><button onClick={() => { SoundEngine.click(); onDelete(row.id, 'placement_stats'); }} className="text-slate-300 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors"><Icon name="trash-2" size={16}/></button></td>}
+                                                {isEditMode && <td className="px-6 py-4 text-right"><button onClick={() => onDelete(row.id, 'placement_stats')} className="text-slate-300 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors"><Icon name="trash-2" size={16}/></button></td>}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -164,7 +163,6 @@
             );
         };
 
-        // --- ACTIVITIES VIEW ---
         const ActivitiesView = ({ data, isEditMode, onDelete, onAdd, loading }) => {
             const [filter, setFilter] = React.useState('All');
             if (loading) return <div className="text-center py-20 text-slate-500">Loading Activities...</div>;
@@ -176,10 +174,10 @@
                         <h2 className="text-3xl md:text-4xl font-serif font-bold text-slate-800 mb-2">Activities Log</h2>
                         <div className="flex flex-wrap justify-center gap-2 px-4 mt-6">
                             {['All', 'Recruitment Drive', 'Student Empowerment', 'Event'].map(cat => (
-                                <button key={cat} onClick={() => { SoundEngine.click(); setFilter(cat); }} className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide transition-all border ${filter === cat ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}>{cat}</button>
+                                <button key={cat} onClick={() => setFilter(cat)} className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide transition-all border ${filter === cat ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}>{cat}</button>
                             ))}
                         </div>
-                        {isEditMode && <button onClick={() => { SoundEngine.click(); onAdd(); }} className="mt-6 bg-rkm-maroon text-white px-6 py-2 rounded-full shadow hover:bg-red-900 transition font-bold text-sm uppercase tracking-wider flex items-center gap-2 mx-auto"><Icon name="pen-tool" size={14}/> Add Activity</button>}
+                        {isEditMode && <button onClick={onAdd} className="mt-6 bg-rkm-maroon text-white px-6 py-2 rounded-full shadow hover:bg-red-900 transition font-bold text-sm uppercase tracking-wider flex items-center gap-2 mx-auto"><Icon name="pen-tool" size={14}/> Add Activity</button>}
                     </div>
                     <div className="max-w-3xl mx-auto px-4 space-y-10">
                         {filteredData.length === 0 && <div className="text-center text-slate-400 py-12 italic border-2 border-dashed border-slate-200 rounded-xl">No activities found.</div>}
@@ -212,7 +210,6 @@
             );
         };
 
-        // --- OFFICIALS & TEAM ---
         const PeopleView = ({ data, title, subtitle, isEditMode, onDelete, onAdd, type, loading }) => (
             <div className="bg-slate-50 min-h-screen pb-20 animate-fade-in">
                 <div className="bg-rkm-maroon text-white py-12 text-center mb-8 shadow-inner">
@@ -220,14 +217,14 @@
                     <p className="opacity-80 max-w-xl mx-auto text-sm">{subtitle}</p>
                 </div>
                 <div className="max-w-5xl mx-auto px-4">
-                    {isEditMode && <div className="text-center mb-8"><button onClick={() => { SoundEngine.click(); onAdd(); }} className="bg-rkm-gold text-rkm-maroon px-6 py-2 rounded-full shadow font-bold text-sm uppercase tracking-wider hover:bg-yellow-400">+ Add Member</button></div>}
+                    {isEditMode && <div className="text-center mb-8"><button onClick={onAdd} className="bg-rkm-gold text-rkm-maroon px-6 py-2 rounded-full shadow font-bold text-sm uppercase tracking-wider hover:bg-yellow-400">+ Add Member</button></div>}
                     {loading && <div className="text-center text-slate-400 py-8">Loading...</div>}
                     <div className={`grid grid-cols-1 ${type==='team' ? 'md:grid-cols-3 lg:grid-cols-4' : 'md:grid-cols-2 lg:grid-cols-3'} gap-6`}>
                         {data.map(p => (
                             <div key={p.id} className="bg-white p-6 rounded-xl shadow-sm border-t-4 border-rkm-gold text-center hover:shadow-md transition-shadow relative group">
                                 {isEditMode && <button onClick={() => onDelete(p.id, type === 'team' ? 'placement_team' : 'placement_officials')} className="absolute top-2 right-2 text-slate-300 hover:text-red-600"><Icon name="trash-2" size={16}/></button>}
-                                <div className={`mx-auto bg-slate-100 rounded-full mb-4 overflow-hidden border-4 border-slate-50 shadow-inner ${type==='team'?'w-16 h-16':'w-24 h-24'}`}>
-                                    {p.image ? <img src={p.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><Icon name="user" size={type==='team'?24:40}/></div>}
+                                <div className="w-24 h-24 mx-auto bg-slate-100 rounded-full mb-4 overflow-hidden border-4 border-slate-50 shadow-inner">
+                                    {p.image ? <img src={p.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><Icon name="user" size={40}/></div>}
                                 </div>
                                 <h3 className="font-bold text-lg text-rkm-maroon">{p.name}</h3>
                                 <p className="text-slate-500 font-serif text-sm mb-1">{p.role}</p>
@@ -239,42 +236,29 @@
             </div>
         );
 
-        // --- FORMS ---
         const Modal = ({ isOpen, onClose, title, children }) => {
             if (!isOpen) return null;
-            return (<div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] scale-100 transition-transform"><div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-lg text-slate-800 font-serif">{title}</h3><button onClick={() => { SoundEngine.click(); onClose(); }}><Icon name="x" size={20} className="text-slate-400 hover:text-red-600 transition-colors"/></button></div><div className="p-6 overflow-y-auto">{children}</div></div></div>);
+            return (<div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] scale-100 transition-transform"><div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-lg text-slate-800 font-serif">{title}</h3><button onClick={onClose}><Icon name="x" size={20} className="text-slate-400 hover:text-red-600 transition-colors"/></button></div><div className="p-6 overflow-y-auto">{children}</div></div></div>);
         };
 
         const AddStatForm = ({ onClose, db }) => {
-            const [f, setF] = React.useState({ date: "", company: "", mode: "Physical", aptitude: "", gd: "", tech: "", hr: "", selected: "" });
-            const sub = async (e) => { 
-                e.preventDefault(); 
-                await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'), { ...f, createdAt: serverTimestamp() }); 
-                SoundEngine.success();
-                onClose(); 
-            };
-            return (<form onSubmit={sub} className="space-y-4"><div className="grid grid-cols-2 gap-3"><input type="date" required className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,date:e.target.value})} /><select className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,mode:e.target.value})}><option>Physical</option><option>Virtual</option><option>Mixed</option></select></div><input required placeholder="Company Name" className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold font-bold" onChange={e=>setF({...f,company:e.target.value})} /><div className="grid grid-cols-4 gap-2 text-center">{['aptitude', 'gd', 'tech', 'hr'].map(k => <input key={k} placeholder={k.toUpperCase()} className="p-2 border rounded-lg text-center outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,[k]:e.target.value})} />)}</div><input placeholder="Selected (Offers)" className="w-full p-3 border border-green-200 bg-green-50 rounded-lg font-bold text-green-800 outline-none focus:ring-2 focus:ring-green-400" onChange={e=>setF({...f,selected:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Save Record</button></form>);
+            const [f, setF] = React.useState({});
+            const sub = async (e) => { e.preventDefault(); await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'), { ...f, createdAt: serverTimestamp() }); onClose(); };
+            return (<form onSubmit={sub} className="space-y-4"><div className="grid grid-cols-2 gap-3"><input type="date" required className="w-full p-2 border rounded" onChange={e=>setF({...f,date:e.target.value})} /><select className="w-full p-2 border rounded" onChange={e=>setF({...f,mode:e.target.value})}><option>Physical</option><option>Virtual</option></select></div><input placeholder="Company" required className="w-full p-2 border rounded" onChange={e=>setF({...f,company:e.target.value})} /><div className="grid grid-cols-4 gap-2">{['aptitude', 'gd', 'tech', 'hr'].map(k => <input key={k} placeholder={k.toUpperCase()} className="p-2 border rounded text-center" onChange={e=>setF({...f,[k]:e.target.value})} />)}</div><input placeholder="Selected" className="w-full p-2 border border-green-300 bg-green-50 font-bold" onChange={e=>setF({...f,selected:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded font-bold">Save</button></form>);
         };
 
         const AddDiaryForm = ({ onClose, db }) => {
-            const [f, setF] = React.useState({ date: "", title: "", desc: "", location: "", image: "", tags: "", category: "Recruitment Drive" });
-            const sub = async (e) => { 
-                e.preventDefault(); 
-                const t = f.tags.split(','); 
-                await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'), { ...f, tags: t, createdAt: serverTimestamp() }); 
-                SoundEngine.success();
-                onClose(); 
-            };
-            return (<form onSubmit={sub} className="space-y-4"><div className="grid grid-cols-2 gap-3"><input type="date" required className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,date:e.target.value})} /><select className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,category:e.target.value})}><option>Recruitment Drive</option><option>Student Empowerment</option><option>Event</option></select></div><input required placeholder="Title" className="w-full p-3 border rounded-lg font-bold text-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,title:e.target.value})} /><textarea required placeholder="Description..." className="w-full p-3 border rounded-lg h-32 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,desc:e.target.value})}></textarea><input placeholder="Image URL" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold text-sm" onChange={e=>setF({...f,image:e.target.value})} /><input placeholder="Tags" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,tags:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Publish</button></form>);
+            const [f, setF] = React.useState({ category: "Recruitment Drive" });
+            const sub = async (e) => { e.preventDefault(); const t = f.tags ? f.tags.split(',') : []; await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'), { ...f, tags: t, createdAt: serverTimestamp() }); onClose(); };
+            return (<form onSubmit={sub} className="space-y-4"><div className="grid grid-cols-2 gap-3"><input type="date" required className="w-full p-2 border rounded" onChange={e=>setF({...f,date:e.target.value})} /><select className="w-full p-2 border rounded" onChange={e=>setF({...f,category:e.target.value})}><option>Recruitment Drive</option><option>Student Empowerment</option><option>Event</option></select></div><input placeholder="Title" required className="w-full p-2 border rounded font-bold" onChange={e=>setF({...f,title:e.target.value})} /><textarea required placeholder="Description..." className="w-full p-2 border rounded h-32" onChange={e=>setF({...f,desc:e.target.value})}></textarea><input placeholder="Image URL" className="w-full p-2 border rounded" onChange={e=>setF({...f,image:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded font-bold">Publish</button></form>);
         };
 
         const AddPersonForm = ({ onClose, db, type }) => {
-            const [f, setF] = React.useState({ name: "", role: "", dept: "", image: "" });
-            const sub = async (e) => { e.preventDefault(); await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type), { ...f, createdAt: serverTimestamp() }); SoundEngine.success(); onClose(); };
-            return (<form onSubmit={sub} className="space-y-4"><input required placeholder="Name" className="w-full p-3 border rounded-lg font-bold outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,name:e.target.value})} /><input required placeholder="Role" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,role:e.target.value})} /><input placeholder="Dept" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,dept:e.target.value})} /><input placeholder="Photo URL" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,image:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Add</button></form>);
+            const [f, setF] = React.useState({});
+            const sub = async (e) => { e.preventDefault(); await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type), { ...f, createdAt: serverTimestamp() }); onClose(); };
+            return (<form onSubmit={sub} className="space-y-4"><input required placeholder="Name" className="w-full p-2 border rounded font-bold" onChange={e=>setF({...f,name:e.target.value})} /><input required placeholder="Role" className="w-full p-2 border rounded" onChange={e=>setF({...f,role:e.target.value})} /><input placeholder="Dept" className="w-full p-2 border rounded" onChange={e=>setF({...f,dept:e.target.value})} /><input placeholder="Photo URL" className="w-full p-2 border rounded" onChange={e=>setF({...f,image:e.target.value})} /><button className="w-full bg-rkm-maroon text-white p-3 rounded font-bold">Add</button></form>);
         };
 
-        // --- MAIN APP ---
         const App = () => {
             const [user, setUser] = React.useState(null);
             const [db, setDb] = React.useState(null);
@@ -282,24 +266,47 @@
             const [loading, setLoading] = React.useState(true);
             const [activeTab, setActiveTab] = React.useState('stats');
             const [isEdit, setIsEdit] = React.useState(false);
-            const [modal, setModal] = React.useState(null); 
-            const [soundOn, setSoundOn] = React.useState(true);
-            const [debugMsg, setDebugMsg] = React.useState("Initializing...");
-
-            React.useEffect(() => { SoundEngine.enabled = soundOn; }, [soundOn]);
+            const [modal, setModal] = React.useState(null);
+            const [configLoaded, setConfigLoaded] = React.useState(false);
+            const [errorMsg, setErrorMsg] = React.useState("");
+            const STORAGE_KEY = "firebase_config_final_v20";
 
             React.useEffect(() => {
-                try {
-                    const app = initializeApp(HARDCODED_CONFIG);
-                    const auth = getAuth(app);
-                    const database = getFirestore(app);
-                    setDb(database);
-                    signInAnonymously(auth)
-                        .then(() => setDebugMsg("Connected"))
-                        .catch(e => setDebugMsg("Auth Error: " + e.message));
-                    onAuthStateChanged(auth, setUser);
-                } catch(e) { console.error(e); }
+                if (HARDCODED_CONFIG && HARDCODED_CONFIG.apiKey) {
+                    try {
+                        const app = initializeApp(HARDCODED_CONFIG);
+                        setDb(getFirestore(app));
+                        const auth = getAuth(app);
+                        signInAnonymously(auth).catch(e => console.error(e));
+                        onAuthStateChanged(auth, setUser);
+                        setConfigLoaded(true);
+                        return;
+                    } catch(e) {}
+                }
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    try {
+                        const config = JSON.parse(saved);
+                        const app = initializeApp(config);
+                        const auth = getAuth(app);
+                        setDb(getFirestore(app));
+                        signInAnonymously(auth).catch(e => {
+                            if(e.code === 'auth/api-key-not-valid'){
+                                localStorage.removeItem(STORAGE_KEY);
+                                setConfigLoaded(false);
+                                setErrorMsg("Invalid API Key.");
+                            }
+                        });
+                        onAuthStateChanged(auth, setUser);
+                        setConfigLoaded(true);
+                    } catch(e) { setConfigLoaded(false); }
+                } else { setConfigLoaded(false); }
             }, []);
+
+            const handleSaveConfig = (config) => {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+                window.location.reload();
+            };
 
             React.useEffect(() => {
                 if (!user || !db) return;
@@ -314,32 +321,22 @@
             }, [user, db]);
 
             const deleteRec = async (id, type) => {
-                SoundEngine.click();
-                if (confirm("Delete permanently?")) {
-                    await deleteDoc(doc(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type, id));
-                    SoundEngine.click();
-                }
+                if (confirm("Delete permanently?")) await deleteDoc(doc(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type, id));
             };
+
+            if (!configLoaded) return <FirebaseSetup onSave={handleSaveConfig} errorMsg={errorMsg} />;
 
             return (
                 <div className="min-h-screen flex flex-col">
                     <Navbar activeTab={activeTab} setActiveTab={setActiveTab} isEditMode={isEdit} setEditMode={setIsEdit} />
                     <main className="flex-grow">
-                        {activeTab === 'stats' && <StatsView data={data.stats} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => { SoundEngine.click(); setModal('stat'); }} loading={loading} />}
-                        {activeTab === 'activities' && <ActivitiesView data={data.diary} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => { SoundEngine.click(); setModal('diary'); }} loading={loading} />}
-                        {activeTab === 'officials' && <OfficialsView data={data.officials} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => { SoundEngine.click(); setModal('official'); }} loading={loading} />}
-                        {activeTab === 'team' && <PeopleView data={data.team} title="Student Coordinators" subtitle="The driving force" isEditMode={isEdit} onDelete={deleteRec} onAdd={() => { SoundEngine.click(); setModal('team'); }} type="placement_team" loading={loading} />}
+                        {activeTab === 'stats' && <StatsView data={data.stats} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => setModal('stat')} loading={loading} />}
+                        {activeTab === 'activities' && <ActivitiesView data={data.diary} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => setModal('diary')} loading={loading} />}
+                        {activeTab === 'officials' && <OfficialsView data={data.officials} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => setModal('official')} loading={loading} />}
+                        {activeTab === 'team' && <TeamView data={data.team} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => setModal('team')} loading={loading} />}
                     </main>
-                    <footer className="bg-slate-900 text-white py-8 text-center no-print mt-auto flex flex-col items-center">
-                        <p className="opacity-50 text-sm">© 2025 Career Guidance Bureau | RKMVC</p>
-                        <div className="flex gap-4 mt-2 items-center">
-                            <p className="text-[10px] text-slate-600">Status: {debugMsg}</p>
-                            <button onClick={() => setSoundOn(!soundOn)} className={`text-xs border border-slate-700 px-2 py-1 rounded hover:bg-slate-800 ${soundOn ? 'text-green-400' : 'text-slate-500'}`}>
-                                Sound: {soundOn ? 'ON' : 'OFF'}
-                            </button>
-                        </div>
-                    </footer>
-                    <Modal isOpen={!!modal} onClose={() => { SoundEngine.click(); setModal(null); }} title={modal==='stat'?"Add Statistic":modal==='diary'?"Add Activity":"Add Person"}>
+                    <footer className="bg-rkm-maroon text-white py-6 text-center no-print mt-auto"><p>© 2025 RKMVC</p></footer>
+                    <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal}>
                         {modal === 'stat' && <AddStatForm onClose={() => setModal(null)} db={db} />}
                         {modal === 'diary' && <AddDiaryForm onClose={() => setModal(null)} db={db} />}
                         {(modal === 'official' || modal === 'team') && <AddPersonForm onClose={() => setModal(null)} db={db} type={modal === 'official' ? 'placement_officials' : 'placement_team'} />}
