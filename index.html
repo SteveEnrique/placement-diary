@@ -4,84 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RKMVC Placement Diary</title>
-    
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: {
-                        rkm: {
-                            maroon: '#800000',
-                            maroonLight: '#A01515',
-                            gold: '#FFC107',
-                            goldLight: '#FFD54F',
-                            cream: '#FEFCE8',
-                        }
-                    },
-                    fontFamily: {
-                        serif: ['"Noto Serif"', 'serif'],
-                        sans: ['"Noto Sans"', 'sans-serif'],
-                    },
-                    animation: {
-                        'fade-in': 'fadeIn 0.8s ease-out',
-                        'slide-up': 'slideUp 0.6s ease-out forwards',
-                    },
-                    keyframes: {
-                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
-                        slideUp: { '0%': { transform: 'translateY(20px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } }
-                    }
+                    colors: { rkm: { maroon: '#800000', gold: '#FFC107', cream: '#FFFDD0' } },
+                    fontFamily: { serif: ['"Noto Serif"', 'serif'], sans: ['"Noto Sans"', 'sans-serif'] }
                 }
             }
         }
     </script>
-    
-    <!-- React & Babel -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Icons & Fonts -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&family=Noto+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Serif:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
     <style>
-        /* Applied Cream Background Globally */
-        body { font-family: 'Noto Sans', sans-serif; background-color: #FEFCE8; }
+        body { font-family: 'Noto Sans', sans-serif; }
         h1, h2, h3, .brand-font { font-family: 'Noto Serif', serif; }
-        
-        /* Premium Scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #FEFCE8; }
-        ::-webkit-scrollbar-thumb { background: #800000; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-        .glass-nav {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-        }
-        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         @media print {
-            body { background: white; -webkit-print-color-adjust: exact; }
+            body { background: white; }
             .no-print { display: none !important; }
             .print-break-inside-avoid { break-inside: avoid; }
-            .shadow-md, .shadow-lg, .shadow-xl { box-shadow: none !important; }
-            .border-t-4 { border-top-width: 2px !important; }
-            .glass-nav { background: white !important; backdrop-filter: none !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="text-slate-900 antialiased selection:bg-rkm-gold selection:text-rkm-maroon bg-rkm-cream">
-
+<body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
-
     <script type="text/babel" data-type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
-        // --- CONFIGURATION ---
+        // ✅ CONFIGURATION
         const HARDCODED_CONFIG = {
             apiKey: "AIzaSyAIIlLfjh265a8cDtUmDaukEst2s12GqvME",
             authDomain: "rkmvc-placement-2025-2026.firebaseapp.com",
@@ -91,415 +52,357 @@
             appId: "1:886169557208:web:2e69a76784a587a9e79fac",
             measurementId: "G-3V10HBH51Y"
         };
-
         const APP_COLLECTION_ID = "rkmvc-placement-diary-live-v2";
-        const DEFAULT_LOGO = "https://upload.wikimedia.org/wikipedia/en/7/76/Ramakrishna_Mission_Emblem.svg";
-        
-        // --- QUOTES ---
-        const QUOTES = [
-            "Arise, awake, and stop not till the goal is reached.",
-            "All power is within you; you can do anything and everything.",
-            "Take up one idea. Make that one idea your life.",
-            "Education is the manifestation of the perfection already in man.",
-            "Strength is Life, Weakness is Death.",
-            "Believe in yourself and the world will be at your feet.",
-            "The greatest sin is to think yourself weak."
-        ];
+        const LOGO_URL = "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Ramakrishna_Mission_Emblem.svg/1200px-Ramakrishna_Mission_Emblem.svg.png"; 
 
-        // --- ICONS ---
-        const Icon = ({ name, size = 20, className = "" }) => {
-            React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
-            return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block', verticalAlign: 'middle' }}></i>;
-        };
+        // --- HELPERS & ICONS ---
+        const Icon = ({ name, size = 20, className = "" }) => { React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]); return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block', verticalAlign: 'middle' }}></i>; };
+        const safeParseInt = (val) => { const num = parseInt(String(val).replace(/\D/g, '')); return isNaN(num) ? 0 : num; };
 
-        // --- NAVBAR ---
-        const Navbar = ({ isEditMode, setEditMode }) => {
-            const [logo, setLogo] = React.useState(localStorage.getItem('custom_logo') || DEFAULT_LOGO);
-            
-            const changeLogo = () => {
-                const newLogo = prompt("Enter new Logo URL:", logo);
-                if(newLogo) {
-                    setLogo(newLogo);
-                    localStorage.setItem('custom_logo', newLogo);
-                }
-            };
+        // --- COMPONENTS ---
 
-            return (
-                <nav className="sticky top-0 z-50 glass-nav border-b border-slate-200 no-print transition-all duration-300">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex justify-between items-center h-20">
-                            <div className="flex items-center space-x-4 group cursor-default">
-                                <div className="relative">
-                                    <img src={logo} alt="RKM Emblem" className="h-14 w-auto drop-shadow-md transform group-hover:scale-105 transition-transform duration-500" onError={(e) => e.target.src = DEFAULT_LOGO} />
-                                    {isEditMode && (
-                                        <button onClick={changeLogo} className="absolute -bottom-2 -right-2 bg-slate-800 text-white p-1 rounded-full text-[10px] opacity-0 group-hover:opacity-100 transition-opacity" title="Change Logo">
-                                            <Icon name="edit-2" size={10} />
-                                        </button>
-                                    )}
-                                </div>
-                                <div className="flex flex-col">
-                                    <h1 className="text-rkm-maroon font-bold text-sm md:text-lg leading-none font-serif tracking-wide uppercase">Ramakrishna Mission</h1>
-                                    <h2 className="text-slate-800 font-bold text-base md:text-2xl leading-tight font-serif tracking-wider uppercase">Vivekananda College</h2>
-                                    <p className="text-[10px] md:text-xs text-rkm-gold font-bold tracking-[0.2em] uppercase hidden md:block">Autonomous • Mylapore</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <button onClick={() => window.print()} className="flex items-center space-x-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full shadow-sm text-xs md:text-sm font-bold uppercase tracking-wider transition-all">
-                                    <Icon name="printer" size={16} /> <span className="hidden md:inline">Print</span>
-                                </button>
-                                <button 
-                                    onClick={() => setEditMode(!isEditMode)}
-                                    className={`p-2 rounded-full transition-all duration-300 shadow-sm border ${isEditMode ? 'bg-rkm-gold text-rkm-maroon border-rkm-maroon rotate-0' : 'bg-white text-slate-400 border-slate-200 -rotate-12 hover:rotate-0'}`}
-                                    title={isEditMode ? "Exit Admin Mode" : "Enter Admin Mode"}
-                                >
-                                    <Icon name={isEditMode ? "unlock" : "lock"} size={18} />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="h-1 w-full bg-gradient-to-r from-rkm-maroon via-rkm-gold to-rkm-maroon"></div>
-                </nav>
-            );
-        };
-
-        // --- QUOTE BANNER ---
-        const QuoteBanner = () => {
-            const [index, setIndex] = React.useState(0);
-            const [fade, setFade] = React.useState(true);
-
-            React.useEffect(() => {
-                const interval = setInterval(() => {
-                    setFade(false);
-                    setTimeout(() => {
-                        setIndex((prev) => (prev + 1) % QUOTES.length);
-                        setFade(true);
-                    }, 500);
-                }, 3500);
-                return () => clearInterval(interval);
-            }, []);
-
-            return (
-                <div className="bg-rkm-cream border-b border-slate-100 py-3 text-center no-print relative overflow-hidden">
-                    <div className="max-w-4xl mx-auto px-4">
-                        <p className={`text-rkm-maroon font-serif italic text-sm md:text-lg transition-opacity duration-500 ${fade ? 'opacity-100' : 'opacity-0'}`}>
-                            "{QUOTES[index]}"
-                        </p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">- Swami Vivekananda</p>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- HERO ---
-        const Hero = ({ stats }) => {
-            const getNum = (v) => { const n = parseInt(String(v).replace(/\D/g,'')); return isNaN(n)?0:n; };
-            const totalPlaced = stats.reduce((acc, curr) => acc + getNum(curr.selected), 0);
-            const totalCompanies = new Set(stats.map(s => s.company)).size;
-
-            return (
-                <React.Fragment>
-                    <div className="hidden print:block w-full border-b-4 border-double border-rkm-maroon mb-8 pb-4">
-                        <div className="flex items-center justify-between">
-                            <img src={DEFAULT_LOGO} alt="Emblem" className="h-24 w-auto" />
-                            <div className="text-center flex-1 px-4">
-                                <h1 className="text-2xl font-bold uppercase font-serif text-rkm-maroon">Ramakrishna Mission Vivekananda College</h1>
-                                <p className="text-sm font-semibold uppercase">(Autonomous)</p>
-                                <p className="text-sm text-slate-500 mt-1">Mylapore, Chennai - 600004</p>
-                                <div className="mt-4 inline-block border-t-2 border-rkm-gold pt-2 px-8"><h2 className="text-xl font-bold uppercase">Placement Diary</h2><p className="text-sm font-bold text-slate-500">2025-2026</p></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="relative bg-gradient-to-br from-rkm-maroon to-red-900 text-white overflow-hidden no-print shadow-lg animate-fade-in" style={{ minHeight: '340px' }}>
-                        <div className="absolute top-0 left-0 w-full h-full opacity-10">
-                            <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="dots" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="#FFC107"/></pattern></defs><rect width="100%" height="100%" fill="url(#dots)" /></svg>
+        const Navbar = ({ activeTab, setActiveTab, isEditMode, setEditMode }) => (
+            <nav className="sticky top-0 z-50 bg-white shadow-md border-b-4 border-rkm-gold no-print">
+                <div className="max-w-7xl mx-auto px-4">
+                    <div className="flex flex-col md:flex-row justify-between items-center h-auto md:h-20 py-2 md:py-0">
+                        <div className="text-center md:text-left mb-2 md:mb-0 cursor-pointer" onClick={() => window.scrollTo(0,0)}>
+                            <h1 className="text-rkm-maroon font-bold text-lg md:text-xl uppercase tracking-wide leading-none">Ramakrishna Mission</h1>
+                            <h2 className="text-rkm-gold font-bold text-xl md:text-2xl uppercase leading-none" style={{textShadow: '1px 1px 0 #800000'}}>Vivekananda College</h2>
                         </div>
                         
-                        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-20 flex flex-col justify-center h-full">
-                            <div className="border-l-4 border-rkm-gold pl-6 animate-slide-up" style={{animationDelay: '0.1s'}}>
-                                <span className="text-rkm-gold font-bold tracking-widest uppercase text-xs md:text-sm mb-2 block">Career Guidance Bureau</span>
-                                <h1 className="text-4xl md:text-6xl font-serif font-bold leading-tight mb-4 drop-shadow-md">
-                                    Placement Diary <br/>
-                                    <span className="text-rkm-gold">2025 - 2026</span>
-                                </h1>
-                                <p className="text-sm md:text-lg text-slate-200 max-w-2xl font-light leading-relaxed">
-                                    Bridging the gap between education and employment. Documenting the journey of our students towards success.
-                                </p>
+                        <div className="flex items-center gap-4">
+                            <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-[280px] md:max-w-none">
+                                {['stats', 'activities', 'officials', 'team'].map(tab => (
+                                    <button 
+                                        key={tab}
+                                        onClick={() => setActiveTab(tab)} 
+                                        className={`px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-all uppercase whitespace-nowrap ${activeTab === tab ? 'bg-rkm-maroon text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        {tab}
+                                    </button>
+                                ))}
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 max-w-lg mt-10 animate-slide-up" style={{animationDelay: '0.3s'}}>
-                                <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 border border-white/20 hover:bg-white/20 transition-colors">
-                                    <div className="text-3xl font-bold text-white">{totalPlaced}</div>
-                                    <div className="text-[10px] text-rkm-gold uppercase tracking-widest font-bold mt-1">Offers Received</div>
+                            <div className="hidden md:block h-8 w-px bg-slate-200 mx-1"></div>
+
+                            <button onClick={() => window.print()} className="text-slate-500 hover:text-rkm-maroon cursor-pointer" title="Print"><Icon name="printer" size={20} /></button>
+                            <button onClick={() => setEditMode(!isEditMode)} className={`text-slate-500 hover:text-rkm-maroon cursor-pointer ${isEditMode ? 'text-red-600' : ''}`} title="Admin Mode"><Icon name={isEditMode ? "unlock" : "lock"} size={20} /></button>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        );
+
+        // --- STATISTICS VIEW ---
+        const StatsView = ({ data, isEditMode, onDelete, onAdd }) => {
+            const totalPlaced = data.reduce((acc, curr) => acc + safeParseInt(curr.selected), 0);
+            const totalCompanies = new Set(data.map(s => s.company)).size;
+
+            return (
+                <div className="animate-fade-in">
+                    {/* Stats Hero */}
+                    <div className="bg-rkm-maroon text-white py-12 md:py-16 text-center relative overflow-hidden">
+                        <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(#FFC107 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
+                        <div className="relative z-10 container mx-auto px-4">
+                            <h2 className="text-3xl md:text-5xl font-bold font-serif mb-2">Placement Overview</h2>
+                            <p className="text-rkm-gold opacity-90 uppercase tracking-widest text-xs md:text-sm mb-10">Academic Year 2025-2026</p>
+                            
+                            <div className="flex justify-center gap-6 md:gap-12 max-w-4xl mx-auto">
+                                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 md:p-8 w-48 md:w-64 border border-white/10 shadow-xl transform hover:-translate-y-1 transition-transform">
+                                    <div className="text-5xl md:text-6xl font-bold text-white mb-2">{totalPlaced}</div>
+                                    <div className="h-1 w-16 bg-rkm-gold mx-auto mb-2 rounded-full"></div>
+                                    <div className="text-xs md:text-sm text-rkm-gold uppercase font-bold tracking-widest">Offers Received</div>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 border border-white/20 hover:bg-white/20 transition-colors">
-                                    <div className="text-3xl font-bold text-white">{totalCompanies}</div>
-                                    <div className="text-[10px] text-rkm-gold uppercase tracking-widest font-bold mt-1">Companies Visited</div>
+                                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 md:p-8 w-48 md:w-64 border border-white/10 shadow-xl transform hover:-translate-y-1 transition-transform">
+                                    <div className="text-5xl md:text-6xl font-bold text-white mb-2">{totalCompanies}</div>
+                                    <div className="h-1 w-16 bg-rkm-gold mx-auto mb-2 rounded-full"></div>
+                                    <div className="text-xs md:text-sm text-rkm-gold uppercase font-bold tracking-widest">Recruiters</div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </React.Fragment>
-            );
-        };
 
-        // --- STATS TABLE ---
-        const StatsTable = ({ data, isEditMode, onDelete, onAdd }) => {
-            const [sortConfig, setSortConfig] = React.useState({ key: 'date', direction: 'desc' });
-            const sortedData = [...data].sort((a, b) => {
-                if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-                if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
-                return 0;
-            });
-
-            return (
-                <section className="py-12 bg-rkm-cream print:py-4 relative z-10 -mt-8 rounded-t-3xl mx-2 md:mx-0 shadow-xl md:shadow-none md:rounded-none md:mt-0 border-t md:border-t-0 border-slate-100">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 print:mb-4 border-b border-slate-200 pb-4 gap-4">
-                            <div>
-                                <h2 className="text-2xl md:text-3xl font-bold text-slate-800 font-serif flex items-center">
-                                    <span className="bg-rkm-maroon/10 p-2 rounded-lg mr-3 text-rkm-maroon"><Icon name="bar-chart-3" size={24} /></span>
-                                    Placement Statistics
-                                </h2>
+                    {/* Table Area */}
+                    <div className="max-w-7xl mx-auto px-4 -mt-8 relative z-20 pb-20">
+                        <div className="bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden">
+                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <h3 className="font-bold text-slate-700 flex items-center gap-2 text-lg"><Icon name="table" size={20}/> Recruitment Data</h3>
+                                {isEditMode && <button onClick={onAdd} className="bg-rkm-maroon text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-red-900 transition shadow-md flex items-center gap-2"><Icon name="plus" size={14}/> Add Record</button>}
                             </div>
-                            {isEditMode && (
-                                <button onClick={onAdd} className="w-full md:w-auto flex items-center justify-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all no-print text-sm font-bold uppercase tracking-wider">
-                                    <Icon name="plus" size={16} /> <span>Add Record</span>
-                                </button>
-                            )}
-                        </div>
-
-                        {data.length === 0 ? (
-                            <div className="text-center py-16 bg-white/50 rounded-2xl border-2 border-dashed border-slate-300">
-                                <div className="text-slate-400 mb-3"><Icon name="clipboard-list" size={48} /></div>
-                                <p className="text-slate-600 font-medium">No placement records yet.</p>
-                                {isEditMode && <p className="text-sm text-rkm-maroon mt-2 font-bold cursor-pointer hover:underline" onClick={onAdd}>+ Add your first record</p>}
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-sm bg-white print:border-2 print:border-black print:rounded-none">
-                                <table className="min-w-full divide-y divide-slate-100 text-sm whitespace-nowrap">
-                                    <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-xs print:bg-slate-200 print:text-black">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left whitespace-nowrap">
+                                    <thead className="bg-slate-100 text-slate-600 border-b border-slate-200">
                                         <tr>
-                                            {['Date', 'Company', 'Mode', 'Apt', 'GD', 'Tech', 'HR', 'Selected'].map((head) => (
-                                                <th key={head} className="px-6 py-4 text-left print:border-r print:border-slate-300">{head}</th>
-                                            ))}
-                                            {isEditMode && <th className="px-6 py-4 no-print"></th>}
+                                            {['Date', 'Company', 'Mode', 'Apt', 'GD', 'Tech', 'HR', 'Selected'].map(h => <th key={h} className="px-6 py-4 font-bold uppercase text-xs tracking-wider">{h}</th>)}
+                                            {isEditMode && <th></th>}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {sortedData.map((row) => (
-                                            <tr key={row.id} className="hover:bg-slate-50 transition-colors print:border-b print:border-slate-300">
-                                                <td className="px-6 py-4 font-mono text-slate-500 text-xs print:border-r">{new Date(row.date).toLocaleDateString('en-GB')}</td>
-                                                <td className="px-6 py-4 font-bold text-slate-800 print:border-r">{row.company}</td>
-                                                <td className="px-6 py-4 text-slate-500 print:border-r">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-bold border ${row.mode.toLowerCase().includes('virtual') ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-blue-50 text-blue-700 border-blue-100'} print:border-0 print:p-0`}>{row.mode}</span>
-                                                </td>
-                                                <td className="px-6 py-4 text-center text-slate-600 print:border-r">{row.aptitude || '-'}</td>
-                                                <td className="px-6 py-4 text-center text-slate-600 print:border-r">{row.gd || '-'}</td>
-                                                <td className="px-6 py-4 text-center text-slate-600 print:border-r">{row.tech || '-'}</td>
-                                                <td className="px-6 py-4 text-center text-slate-600 print:border-r">{row.hr || '-'}</td>
-                                                <td className="px-6 py-4 text-center print:border-0"><span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs print:bg-transparent print:text-black">{row.selected}</span></td>
-                                                {isEditMode && <td className="px-6 py-4 text-right no-print"><button onClick={() => onDelete(row.id, 'placement_stats')} className="text-slate-300 hover:text-red-500 transition-colors"><Icon name="trash-2" size={16} /></button></td>}
+                                        {data.length === 0 && <tr><td colSpan="9" className="p-12 text-center text-slate-400 italic bg-slate-50/30">No records yet.</td></tr>}
+                                        {data.map((row) => (
+                                            <tr key={row.id} className="hover:bg-amber-50/40 transition-colors">
+                                                <td className="px-6 py-4 font-mono text-slate-500 text-xs">{new Date(row.date).toLocaleDateString('en-GB')}</td>
+                                                <td className="px-6 py-4 font-bold text-slate-800">{row.company}</td>
+                                                <td className="px-6 py-4"><span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${row.mode==='Virtual'?'bg-purple-50 text-purple-600 border-purple-100':'bg-blue-50 text-blue-600 border-blue-100'}`}>{row.mode}</span></td>
+                                                <td className="px-6 py-4 text-center text-slate-500">{row.aptitude}</td>
+                                                <td className="px-6 py-4 text-center text-slate-500">{row.gd}</td>
+                                                <td className="px-6 py-4 text-center text-slate-500">{row.tech}</td>
+                                                <td className="px-6 py-4 text-center text-slate-500">{row.hr}</td>
+                                                <td className="px-6 py-4 text-center"><span className="bg-green-100 text-green-800 px-3 py-1 rounded-full font-bold text-xs shadow-sm">{row.selected}</span></td>
+                                                {isEditMode && <td className="px-6 py-4 text-right"><button onClick={() => onDelete(row.id, 'placement_stats')} className="text-slate-300 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors"><Icon name="trash-2" size={16}/></button></td>}
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
-                        )}
-                    </div>
-                </section>
-            );
-        };
-
-        // --- DIARY SECTION ---
-        const DiarySection = ({ data, isEditMode, onDelete, onAdd }) => {
-            const sortedData = [...data].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-            return (
-                <section className="py-16 bg-rkm-cream print:bg-white print:py-4 border-t border-slate-200">
-                    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 print:mb-4 border-b border-slate-200 pb-4 gap-4">
-                            <div>
-                                <h2 className="text-2xl md:text-3xl font-bold text-slate-800 font-serif flex items-center">
-                                    <span className="bg-rkm-gold/20 p-2 rounded-lg mr-3 text-rkm-maroon"><Icon name="book-open" size={24} /></span>
-                                    Activities Log
-                                </h2>
-                                <p className="text-slate-500 text-sm mt-1 ml-14">Chronological timeline of events and workshops.</p>
-                            </div>
-                            {isEditMode && (
-                                <button onClick={onAdd} className="w-full md:w-auto flex items-center justify-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all no-print text-sm font-bold uppercase tracking-wider">
-                                    <Icon name="plus" size={16} /> <span>Add Event</span>
-                                </button>
-                            )}
                         </div>
-
-                        {data.length === 0 ? (
-                            <div className="text-center py-16 bg-white rounded-2xl border-2 border-dashed border-slate-200">
-                                <div className="text-slate-300 mb-3"><Icon name="calendar-off" size={48} /></div>
-                                <p className="text-slate-500 font-medium">No events logged yet.</p>
-                                {isEditMode && <p className="text-sm text-rkm-maroon mt-2 font-bold cursor-pointer hover:underline" onClick={onAdd}>+ Add your first event</p>}
-                            </div>
-                        ) : (
-                            <div className="space-y-8 print:space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent print:before:hidden">
-                                {sortedData.map((item, idx) => (
-                                    <div key={item.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active animate-slide-up" style={{animationDelay: idx * 0.1 + 's'}}>
-                                        <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-rkm-gold text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 print:hidden"><Icon name="calendar" size={16} /></div>
-                                        
-                                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 print:w-full print:shadow-none print:border-slate-400 print:break-inside-avoid">
-                                            <div className="flex justify-between items-start mb-3">
-                                                <div className="space-y-1">
-                                                    <span className="inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-rkm-maroon bg-red-50 rounded-full mb-2 border border-red-100">{new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                                                    <h3 className="text-xl font-bold text-slate-800 font-serif leading-tight">{item.title}</h3>
-                                                    {item.location && <div className="text-xs font-medium text-slate-500 flex items-center"><Icon name="map-pin" size={12} className="mr-1"/> {item.location}</div>}
-                                                </div>
-                                                {isEditMode && <button onClick={() => onDelete(item.id, 'placement_diary')} className="text-slate-300 hover:text-red-600 no-print transition-colors"><Icon name="trash-2" size={18} /></button>}
-                                            </div>
-                                            <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap mb-4 font-serif">{item.desc}</p>
-                                            {item.tags && <div className="flex flex-wrap gap-2 mb-4 no-print">{item.tags.map((tag, i) => (<span key={i} className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded uppercase tracking-wider">#{tag}</span>))}</div>}
-                                            
-                                            {item.images && item.images.length > 0 && (
-                                                <div className="grid grid-cols-1 gap-2 mt-4 pt-4 border-t border-slate-100">
-                                                    {item.images.map((img, idx) => (
-                                                        <div key={idx} className="relative rounded-lg overflow-hidden bg-slate-50 border border-slate-100">
-                                                            <img src={img} className="w-full h-auto max-h-80 object-contain mx-auto" onError={(e) => {e.target.onerror=null; e.target.src="https://placehold.co/600x400?text=Invalid+Link";}} />
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </section>
-            );
-        };
-
-        const Footer = () => (
-            <footer className="bg-slate-900 text-slate-400 py-12 no-print border-t-4 border-rkm-gold">
-                <div className="max-w-7xl mx-auto px-4 text-center space-y-4">
-                    <div>
-                        <h3 className="font-serif text-xl font-bold text-white uppercase tracking-widest">Ramakrishna Mission Vivekananda College</h3>
-                        <p className="text-xs font-bold text-rkm-gold uppercase tracking-wider mt-1">Autonomous • Re-accredited 'A+' by NAAC</p>
-                    </div>
-                    <div className="text-xs border-t border-slate-800 pt-8 mt-8 max-w-xs mx-auto">
-                        © 2025 Career Guidance Bureau.<br/>Designed for Excellence.
                     </div>
                 </div>
-            </footer>
+            );
+        };
+
+        // --- ACTIVITIES VIEW (BLOG STYLE) ---
+        const ActivitiesView = ({ data, isEditMode, onDelete, onAdd }) => {
+            const [filter, setFilter] = React.useState('All');
+            
+            // Filter Logic
+            const filteredData = filter === 'All' 
+                ? data 
+                : data.filter(item => item.category === filter);
+
+            return (
+                <div className="bg-slate-100 min-h-screen pb-20 animate-fade-in">
+                    <div className="bg-white border-b border-slate-200 pt-10 pb-4 mb-8 text-center shadow-sm">
+                        <h2 className="text-3xl md:text-4xl font-serif font-bold text-slate-800 mb-2">Activities Log</h2>
+                        <p className="text-slate-500 text-sm max-w-xl mx-auto mb-6">Updates on workshops, drives, and campus events.</p>
+                        
+                        {/* Category Filter Tabs */}
+                        <div className="flex flex-wrap justify-center gap-2 px-4">
+                            {['All', 'Recruitment Drive', 'Student Empowerment', 'Event'].map(cat => (
+                                <button 
+                                    key={cat}
+                                    onClick={() => setFilter(cat)}
+                                    className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide transition-all border ${filter === cat ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+
+                        {isEditMode && <button onClick={onAdd} className="mt-6 bg-rkm-maroon text-white px-6 py-2 rounded-full shadow hover:bg-red-900 transition font-bold text-sm uppercase tracking-wider flex items-center gap-2 mx-auto"><Icon name="pen-tool" size={14}/> Add Activity</button>}
+                    </div>
+
+                    <div className="max-w-3xl mx-auto px-4 space-y-10">
+                        {filteredData.length === 0 && <div className="text-center text-slate-400 py-12 italic border-2 border-dashed border-slate-200 rounded-xl">No activities found for this category.</div>}
+                        
+                        {filteredData.map((item) => (
+                            <article key={item.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden group hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+                                {item.image && (
+                                    <div className="w-full h-56 md:h-80 overflow-hidden bg-slate-100 relative">
+                                        <img src={item.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
+                                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-lg text-xs font-bold text-slate-700 shadow-sm flex items-center gap-1">
+                                            <Icon name="calendar" size={12}/> {new Date(item.date).toLocaleDateString('en-GB')}
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                <div className="p-6 md:p-8">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+                                            {!item.image && <span className="flex items-center gap-1"><Icon name="calendar" size={12}/> {new Date(item.date).toLocaleDateString('en-GB')}</span>}
+                                            {item.category && <span className={`px-2 py-1 rounded border ${item.category.includes('Recruit') ? 'bg-blue-50 text-blue-600 border-blue-100' : item.category.includes('Student') ? 'bg-green-50 text-green-600 border-green-100' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{item.category}</span>}
+                                        </div>
+                                        {isEditMode && <button onClick={() => onDelete(item.id, 'placement_diary')} className="text-slate-300 hover:text-red-600 p-1"><Icon name="trash-2" size={18}/></button>}
+                                    </div>
+
+                                    <div className="mb-2">
+                                        {item.location && <span className="inline-flex items-center text-xs font-bold text-rkm-gold uppercase tracking-wider mb-2"><Icon name="map-pin" size={12} className="mr-1"/> {item.location}</span>}
+                                        <h3 className="text-2xl font-serif font-bold text-slate-800 leading-tight group-hover:text-rkm-maroon transition-colors">{item.title}</h3>
+                                    </div>
+                                    
+                                    <div className="prose prose-slate max-w-none border-t border-slate-100 pt-4 mt-4">
+                                        <p className="text-slate-600 leading-relaxed text-base whitespace-pre-wrap font-light">{item.desc}</p>
+                                    </div>
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- OFFICIALS VIEW ---
+        const OfficialsView = ({ data, isEditMode, onDelete, onAdd }) => (
+            <div className="bg-slate-50 min-h-screen pb-20 animate-fade-in">
+                <div className="bg-rkm-maroon text-white py-12 text-center mb-8 shadow-inner">
+                    <h2 className="text-3xl font-serif font-bold mb-2">Placement Officials & Faculty</h2>
+                    <p className="opacity-80 max-w-xl mx-auto text-sm">Honouring the pillars of our Career Guidance Bureau.</p>
+                </div>
+                <div className="max-w-5xl mx-auto px-4">
+                    {isEditMode && <div className="text-center mb-8"><button onClick={onAdd} className="bg-rkm-gold text-rkm-maroon px-6 py-2 rounded-full shadow font-bold text-sm uppercase tracking-wider hover:bg-yellow-400">+ Add Official</button></div>}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {data.length === 0 && <div className="col-span-full text-center text-slate-400 py-12 italic">No officials listed yet.</div>}
+                        {data.map(p => (
+                            <div key={p.id} className="bg-white p-6 rounded-xl shadow-sm border-t-4 border-rkm-gold text-center hover:shadow-md transition-shadow relative group">
+                                {isEditMode && <button onClick={() => onDelete(p.id, 'placement_officials')} className="absolute top-2 right-2 text-slate-300 hover:text-red-600"><Icon name="trash-2" size={16}/></button>}
+                                <div className="w-24 h-24 mx-auto bg-slate-100 rounded-full mb-4 overflow-hidden border-4 border-slate-50 shadow-inner">
+                                    {p.image ? <img src={p.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><Icon name="user" size={40}/></div>}
+                                </div>
+                                <h3 className="font-bold text-lg text-rkm-maroon">{p.name}</h3>
+                                <p className="text-slate-500 font-serif text-sm mb-1">{p.role}</p>
+                                {p.dept && <span className="bg-slate-100 text-slate-600 text-[10px] px-2 py-1 rounded uppercase tracking-wider">{p.dept}</span>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+
+        // --- TEAM VIEW ---
+        const TeamView = ({ data, isEditMode, onDelete, onAdd }) => (
+            <div className="bg-slate-50 min-h-screen pb-20 animate-fade-in">
+                <div className="bg-white border-b border-slate-200 py-12 text-center mb-8">
+                    <h2 className="text-3xl font-serif font-bold text-slate-800 mb-2">Student Coordinators</h2>
+                    <p className="text-slate-500 text-sm">The driving force behind our placement success.</p>
+                </div>
+                <div className="max-w-6xl mx-auto px-4">
+                    {isEditMode && <div className="text-center mb-8"><button onClick={onAdd} className="bg-rkm-maroon text-white px-6 py-2 rounded-full shadow font-bold text-sm uppercase tracking-wider">+ Add Student</button></div>}
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {data.length === 0 && <div className="col-span-full text-center text-slate-400 py-12 italic">No team members listed yet.</div>}
+                        {data.map(p => (
+                            <div key={p.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 relative group hover:border-rkm-gold transition-colors">
+                                {isEditMode && <button onClick={() => onDelete(p.id, 'placement_team')} className="absolute top-2 right-2 text-slate-300 hover:text-red-600"><Icon name="trash-2" size={14}/></button>}
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-slate-100 rounded-full overflow-hidden flex-shrink-0">
+                                        {p.image ? <img src={p.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><Icon name="user" size={20}/></div>}
+                                    </div>
+                                    <div className="text-left overflow-hidden">
+                                        <h4 className="font-bold text-sm text-slate-800 leading-tight truncate">{p.name}</h4>
+                                        <p className="text-xs text-rkm-maroon font-serif truncate">{p.dept}</p>
+                                        <p className="text-[10px] text-slate-400 uppercase tracking-wider">{p.role || 'Coordinator'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
         );
 
         // --- FORMS ---
         const Modal = ({ isOpen, onClose, title, children }) => {
             if (!isOpen) return null;
-            return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 no-print animate-fade-in">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-slide-up">
-                        <div className="px-6 py-5 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                            <h3 className="font-bold text-lg text-slate-800 font-serif">{title}</h3>
-                            <button onClick={onClose} className="p-2 bg-white rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shadow-sm"><Icon name="x" size={18} /></button>
-                        </div>
-                        <div className="p-6 overflow-y-auto">{children}</div>
-                    </div>
-                </div>
-            );
+            return (<div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] scale-100 transition-transform"><div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-lg text-slate-800 font-serif">{title}</h3><button onClick={onClose}><Icon name="x" size={20} className="text-slate-400 hover:text-red-600 transition-colors"/></button></div><div className="p-6 overflow-y-auto">{children}</div></div></div>);
         };
 
         const AddStatForm = ({ onClose, db }) => {
-            const [formData, setFormData] = React.useState({ date: "", company: "", mode: "Physical", aptitude: "", gd: "", tech: "", hr: "", selected: "" });
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                if(!db) return alert("Database not connected");
-                try { await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'), { ...formData, createdAt: serverTimestamp() }); onClose(); } catch(e) { alert("Error: " + e.message); }
-            };
+            const [f, setF] = React.useState({ date: "", company: "", mode: "Physical", aptitude: "", gd: "", tech: "", hr: "", selected: "" });
+            const sub = async (e) => { e.preventDefault(); await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats'), { ...f, createdAt: serverTimestamp() }); onClose(); };
             return (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                        <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Date</label><input type="date" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg outline-none" onChange={e => setFormData({...formData, date: e.target.value})} /></div>
-                        <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Mode</label><select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg outline-none" onChange={e => setFormData({...formData, mode: e.target.value})}><option>Physical</option><option>Virtual</option><option>Mixed</option></select></div>
+                <form onSubmit={sub} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3"><input type="date" required className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,date:e.target.value})} /><select className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,mode:e.target.value})}><option>Physical</option><option>Virtual</option><option>Mixed</option></select></div>
+                    <input required placeholder="Company Name" className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold font-bold" onChange={e=>setF({...f,company:e.target.value})} />
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                        {['aptitude', 'gd', 'tech', 'hr'].map(k => <input key={k} placeholder={k.charAt(0).toUpperCase()+k.slice(1)} className="p-2 border rounded-lg text-center outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,[k]:e.target.value})} />)}
                     </div>
-                    <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Company Name</label><input required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg outline-none" onChange={e => setFormData({...formData, company: e.target.value})} /></div>
-                    <div className="grid grid-cols-4 gap-2">
-                        {['aptitude', 'gd', 'tech', 'hr'].map(k => (<div key={k}><label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block text-center">{k}</label><input className="w-full p-2 bg-slate-50 border border-slate-200 rounded text-center text-sm outline-none" onChange={e => setFormData({...formData, [k]: e.target.value})} /></div>))}
-                    </div>
-                    <div><label className="text-xs font-bold text-green-700 uppercase mb-1 block">Selected Candidates</label><input className="w-full p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 font-bold outline-none" onChange={e => setFormData({...formData, selected: e.target.value})} /></div>
-                    <button type="submit" className="w-full bg-slate-900 text-white p-4 rounded-xl uppercase font-bold text-sm tracking-widest hover:bg-rkm-maroon transition-colors shadow-lg mt-2">Save Record</button>
+                    <input placeholder="Selected (Offers)" className="w-full p-3 border border-green-200 bg-green-50 rounded-lg font-bold text-green-800 outline-none focus:ring-2 focus:ring-green-400" onChange={e=>setF({...f,selected:e.target.value})} />
+                    <button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Save Record</button>
                 </form>
             );
         };
 
         const AddDiaryForm = ({ onClose, db }) => {
-            const [formData, setFormData] = React.useState({ date: "", title: "", desc: "", location: "", image1: "", tags: "" });
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                if(!db) return alert("Database not connected");
-                const images = formData.image1 ? [formData.image1] : [];
-                const tags = formData.tags.split(',').map(t => t.trim()).filter(t => t);
-                try { await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'), { ...formData, images, tags, createdAt: serverTimestamp() }); onClose(); } catch(e) { alert("Error: " + e.message); }
-            };
+            const [f, setF] = React.useState({ date: "", title: "", desc: "", location: "", image: "", tags: "", category: "Recruitment Drive" });
+            const sub = async (e) => { e.preventDefault(); const t = f.tags.split(','); await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary'), { ...f, tags: t, createdAt: serverTimestamp() }); onClose(); };
             return (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                        <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Date</label><input type="date" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg outline-none" onChange={e => setFormData({...formData, date: e.target.value})} /></div>
-                        <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Location</label><input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg outline-none" onChange={e => setFormData({...formData, location: e.target.value})} /></div>
+                <form onSubmit={sub} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3"><input type="date" required className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,date:e.target.value})} />
+                        <select className="w-full p-3 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,category:e.target.value})}>
+                            <option value="Recruitment Drive">Recruitment Drive</option>
+                            <option value="Student Empowerment">Student Empowerment</option>
+                            <option value="Event">Event</option>
+                        </select>
                     </div>
-                    <input required placeholder="Event Title" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg outline-none" onChange={e => setFormData({...formData, title: e.target.value})} />
-                    <textarea required placeholder="Description" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg h-24 outline-none" onChange={e => setFormData({...formData, desc: e.target.value})}></textarea>
-                    <input placeholder="Image URL (https://...)" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg outline-none" onChange={e => setFormData({...formData, image1: e.target.value})} />
-                    <button type="submit" className="w-full bg-slate-900 text-white p-4 rounded-xl uppercase font-bold text-sm tracking-widest hover:bg-rkm-maroon transition-colors shadow-lg mt-2">Save Event</button>
+                    <input placeholder="Location" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,location:e.target.value})} />
+                    <input required placeholder="Activity Title" className="w-full p-3 border rounded-lg font-bold text-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,title:e.target.value})} />
+                    <textarea required placeholder="Write details here..." className="w-full p-3 border rounded-lg h-32 outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,desc:e.target.value})}></textarea>
+                    <input placeholder="Image URL (Paste link)" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold text-sm" onChange={e=>setF({...f,image:e.target.value})} />
+                    <input placeholder="Tags (e.g. Workshop, Talk)" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,tags:e.target.value})} />
+                    <button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Publish Activity</button>
+                </form>
+            );
+        };
+
+        const AddPersonForm = ({ onClose, db, type }) => {
+            const [f, setF] = React.useState({ name: "", role: "", dept: "", image: "" });
+            const sub = async (e) => { e.preventDefault(); await addDoc(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type), { ...f, createdAt: serverTimestamp() }); onClose(); };
+            return (
+                <form onSubmit={sub} className="space-y-4">
+                    <input required placeholder="Name" className="w-full p-3 border rounded-lg font-bold outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,name:e.target.value})} />
+                    <input required placeholder={type.includes('officials') ? "Designation (e.g. Placement Officer)" : "Role (e.g. Volunteer)"} className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,role:e.target.value})} />
+                    <input placeholder="Department (Optional)" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,dept:e.target.value})} />
+                    <input placeholder="Photo URL (Optional)" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-rkm-gold" onChange={e=>setF({...f,image:e.target.value})} />
+                    <button className="w-full bg-rkm-maroon text-white p-3 rounded-lg font-bold hover:bg-red-900 transition shadow-lg">Add Person</button>
                 </form>
             );
         };
 
         // --- MAIN APP ---
         const App = () => {
+            const [user, setUser] = React.useState(null);
             const [db, setDb] = React.useState(null);
-            const [statsData, setStatsData] = React.useState([]);
-            const [diaryData, setDiaryData] = React.useState([]);
-            const [isEditMode, setIsEditMode] = React.useState(false);
-            const [showStatModal, setShowStatModal] = React.useState(false);
-            const [showDiaryModal, setShowDiaryModal] = React.useState(false);
+            const [data, setData] = React.useState({ stats: [], diary: [], officials: [], team: [] });
+            const [activeTab, setActiveTab] = React.useState('stats');
+            const [isEdit, setIsEdit] = React.useState(false);
+            const [modal, setModal] = React.useState(null); 
 
-            // Initialize with Hardcoded Config + NO AUTH
             React.useEffect(() => {
                 try {
                     const app = initializeApp(HARDCODED_CONFIG);
+                    const auth = getAuth(app);
                     const database = getFirestore(app);
                     setDb(database);
+                    signInAnonymously(auth).catch(console.error);
+                    onAuthStateChanged(auth, setUser);
                 } catch(e) { console.error(e); }
             }, []);
 
-            // Fetch Data
             React.useEffect(() => {
-                if (!db) return;
-                const statsQ = collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_stats');
-                const diaryQ = collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', 'placement_diary');
+                if (!user || !db) return;
+                const sub = (col, key) => onSnapshot(query(collection(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', col)), s => {
+                    setData(prev => ({ ...prev, [key]: s.docs.map(d => ({id: d.id, ...d.data()})) }));
+                });
+                sub('placement_stats', 'stats');
+                sub('placement_diary', 'diary');
+                sub('placement_officials', 'officials');
+                sub('placement_team', 'team');
+            }, [user, db]);
 
-                const unsubStats = onSnapshot(statsQ, s => setStatsData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-                const unsubDiary = onSnapshot(diaryQ, s => setDiaryData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-                return () => { unsubStats(); unsubDiary(); };
-            }, [db]);
-
-            const handleDelete = async (id, collectionName) => {
-                if (!db) return;
-                if (confirm("Delete this record permanently?")) {
-                    await deleteDoc(doc(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', collectionName, id));
-                }
+            const deleteRec = async (id, type) => {
+                if (confirm("Delete permanently?")) await deleteDoc(doc(db, 'artifacts', APP_COLLECTION_ID, 'public', 'data', type, id));
             };
 
             return (
                 <div className="min-h-screen flex flex-col">
-                    <Navbar isEditMode={isEditMode} setEditMode={setIsEditMode} />
-                    <QuoteBanner />
-                    <Hero stats={statsData} />
-                    <main className="relative z-10 flex-grow">
-                        <StatsTable data={statsData} isEditMode={isEditMode} onDelete={handleDelete} onAdd={() => setShowStatModal(true)} />
-                        <DiarySection data={diaryData} isEditMode={isEditMode} onDelete={handleDelete} onAdd={() => setShowDiaryModal(true)} />
+                    <Navbar activeTab={activeTab} setActiveTab={setActiveTab} isEditMode={isEdit} setEditMode={setIsEdit} />
+                    
+                    <main className="flex-grow">
+                        {activeTab === 'stats' && <StatsView data={data.stats} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => setModal('stat')} />}
+                        {activeTab === 'activities' && <ActivitiesView data={data.diary} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => setModal('diary')} />}
+                        {activeTab === 'officials' && <OfficialsView data={data.officials} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => setModal('official')} />}
+                        {activeTab === 'team' && <TeamView data={data.team} isEditMode={isEdit} onDelete={deleteRec} onAdd={() => setModal('team')} />}
                     </main>
-                    <Footer />
-                    <Modal isOpen={showStatModal} onClose={() => setShowStatModal(false)} title="Add Statistic"><AddStatForm onClose={() => setShowStatModal(false)} db={db} /></Modal>
-                    <Modal isOpen={showDiaryModal} onClose={() => setShowDiaryModal(false)} title="Add Diary Event"><AddDiaryForm onClose={() => setShowDiaryModal(false)} db={db} /></Modal>
+
+                    <footer className="bg-slate-900 text-white py-8 text-center no-print mt-auto">
+                        <p className="opacity-50 text-sm">© 2025 Career Guidance Bureau | RKMVC</p>
+                    </footer>
+
+                    <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal === 'stat' ? "Add Statistic" : modal === 'diary' ? "Add Activity" : "Add Person"}>
+                        {modal === 'stat' && <AddStatForm onClose={() => setModal(null)} db={db} />}
+                        {modal === 'diary' && <AddDiaryForm onClose={() => setModal(null)} db={db} />}
+                        {modal === 'official' && <AddPersonForm onClose={() => setModal(null)} db={db} type="placement_officials" />}
+                        {modal === 'team' && <AddPersonForm onClose={() => setModal(null)} db={db} type="placement_team" />}
+                    </Modal>
                 </div>
             );
         };
